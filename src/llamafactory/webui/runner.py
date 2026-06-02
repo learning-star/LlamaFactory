@@ -14,9 +14,10 @@
 
 import json
 import os
+import time
 from collections.abc import Generator
 from copy import deepcopy
-from subprocess import PIPE, Popen, TimeoutExpired
+from subprocess import PIPE, Popen
 from typing import TYPE_CHECKING, Any
 
 from transformers.utils import is_torch_npu_available
@@ -37,7 +38,7 @@ from .common import (
     save_args,
     save_cmd,
 )
-from .control import get_trainer_info
+from .control import get_compare_trainer_info, get_trainer_info
 from .locales import ALERTS, LOCALES
 
 
@@ -59,7 +60,9 @@ class Runner:
         self.manager = manager
         self.demo_mode = demo_mode
         """ Resume """
-        self.trainer: Popen | None = None
+        self.trainers: dict[str, Popen] = {}
+        self.run_output_paths: dict[str, str] = {}
+        self.compare_mode = False
         self.do_train = True
         self.running_data: dict[Component, Any] = None
         """ State """
@@ -68,8 +71,8 @@ class Runner:
 
     def set_abort(self) -> None:
         self.aborted = True
-        if self.trainer is not None:
-            abort_process(self.trainer.pid)
+        for trainer in self.trainers.values():
+            abort_process(trainer.pid)
 
     def _initialize(self, data: dict["Component", Any], do_train: bool, from_preview: bool) -> str:
         r"""Validate the configuration."""
@@ -117,11 +120,56 @@ class Runner:
         r"""Clean the cached memory and resets the runner."""
         finish_info = ALERTS["info_aborted"][lang] if self.aborted else finish_info
         gr.Info(finish_info)
-        self.trainer = None
+        self.trainers = {}
+        self.run_output_paths = {}
+        self.compare_mode = False
         self.aborted = False
         self.running = False
         self.running_data = None
         torch_gc()
+
+    def _launch_trainer(self, args: dict[str, Any], output_dir: str, enable_plugin: bool = False) -> Popen:
+        r"""Launch one trainer subprocess."""
+        env = deepcopy(os.environ)
+        env["LLAMABOARD_ENABLED"] = "1"
+        env["LLAMABOARD_WORKDIR"] = output_dir
+        if enable_plugin:
+            env["ECOPHASE_AI_PLUGIN"] = "1"
+        else:
+            env.pop("ECOPHASE_AI_PLUGIN", None)
+
+        if args.get("deepspeed", None) is not None:
+            env["FORCE_TORCHRUN"] = "1"
+
+        return Popen(["llamafactory-cli", "train", save_cmd(args)], env=env, stderr=PIPE, text=True)
+
+    def _build_training_runs(
+        self, args: dict[str, Any], output_path: str, plugin_enabled: bool
+    ) -> dict[str, tuple[dict[str, Any], str, bool]]:
+        r"""Build trainer arguments and target directories for each run."""
+        if not plugin_enabled:
+            return {
+                "Baseline": (
+                    {**args, "output_dir": output_path},
+                    output_path,
+                    False,
+                )
+            }
+
+        baseline_dir = os.path.join(output_path, "baseline")
+        plugin_dir = os.path.join(output_path, "ecophase")
+        return {
+            "Baseline": (
+                {**args, "output_dir": baseline_dir},
+                baseline_dir,
+                False,
+            ),
+            "EcoPhase.AI Plugin": (
+                {**args, "output_dir": plugin_dir},
+                plugin_dir,
+                True,
+            ),
+        }
 
     def _parse_train_args(self, data: dict["Component", Any]) -> dict[str, Any]:
         r"""Build and validate the training arguments."""
@@ -364,18 +412,22 @@ class Runner:
         else:
             self.do_train, self.running_data = do_train, data
             args = self._parse_train_args(data) if do_train else self._parse_eval_args(data)
+            plugin_enabled = bool(data[self.manager.get_elem_by_id("train.use_ecophase_plugin")]) if do_train else False
 
             os.makedirs(args["output_dir"], exist_ok=True)
             save_args(os.path.join(args["output_dir"], LLAMABOARD_CONFIG), self._build_config_dict(data))
 
-            env = deepcopy(os.environ)
-            env["LLAMABOARD_ENABLED"] = "1"
-            env["LLAMABOARD_WORKDIR"] = args["output_dir"]
-            if args.get("deepspeed", None) is not None:
-                env["FORCE_TORCHRUN"] = "1"
+            self.compare_mode = plugin_enabled
+            self.trainers = {}
+            self.run_output_paths = {}
 
-            # NOTE: DO NOT USE shell=True to avoid security risk
-            self.trainer = Popen(["llamafactory-cli", "train", save_cmd(args)], env=env, stderr=PIPE, text=True)
+            run_specs = self._build_training_runs(args, args["output_dir"], plugin_enabled)
+            for label, (run_args, run_output_dir, enable_plugin) in run_specs.items():
+                os.makedirs(run_output_dir, exist_ok=True)
+                self.run_output_paths[label] = run_output_dir
+                # NOTE: DO NOT USE shell=True to avoid security risk
+                self.trainers[label] = self._launch_trainer(run_args, run_output_dir, enable_plugin=enable_plugin)
+
             yield from self.monitor()
 
     def _build_config_dict(self, data: dict["Component", Any]) -> dict[str, Any]:
@@ -412,24 +464,56 @@ class Runner:
         output_path = get_save_dir(model_name, finetuning_type, output_dir)
 
         output_box = self.manager.get_elem_by_id("{}.output_box".format("train" if self.do_train else "eval"))
+        output_row_single = self.manager.get_elem_by_id("train.output_row_single") if self.do_train else None
+        output_row_compare = self.manager.get_elem_by_id("train.output_row_compare") if self.do_train else None
+        output_box_compare_left = self.manager.get_elem_by_id("train.output_box_compare_left") if self.do_train else None
+        output_box_compare_right = self.manager.get_elem_by_id("train.output_box_compare_right") if self.do_train else None
         progress_bar = self.manager.get_elem_by_id("{}.progress_bar".format("train" if self.do_train else "eval"))
         loss_viewer = self.manager.get_elem_by_id("train.loss_viewer") if self.do_train else None
         swanlab_link = self.manager.get_elem_by_id("train.swanlab_link") if self.do_train else None
 
         running_log = ""
-        return_code = -1
-        while return_code == -1:
+        running_logs: dict[str, str] = {}
+        return_codes: dict[str, int] = {}
+        while True:
             if self.aborted:
-                yield {
+                abort_dict = {
                     output_box: ALERTS["info_aborting"][lang],
                     progress_bar: gr.Slider(visible=False),
                 }
+                if output_row_single is not None and output_row_compare is not None:
+                    abort_dict[output_row_single] = gr.update(visible=True)
+                    abort_dict[output_row_compare] = gr.update(visible=False)
+                if output_box_compare_left is not None and output_box_compare_right is not None:
+                    abort_dict[output_box_compare_left] = gr.update(value="")
+                    abort_dict[output_box_compare_right] = gr.update(value="")
+                yield abort_dict
             else:
-                running_log, running_progress, running_info = get_trainer_info(lang, output_path, self.do_train)
+                if self.compare_mode:
+                    running_logs, running_progress, running_info = get_compare_trainer_info(
+                        lang, self.run_output_paths, self.do_train
+                    )
+                else:
+                    primary_output_path = next(iter(self.run_output_paths.values()), output_path)
+                    running_log, running_progress, running_info = get_trainer_info(
+                        lang, primary_output_path, self.do_train
+                    )
                 return_dict = {
                     output_box: running_log,
                     progress_bar: running_progress,
                 }
+                if output_row_single is not None and output_row_compare is not None:
+                    if self.compare_mode and output_box_compare_left is not None and output_box_compare_right is not None:
+                        compare_labels = list(self.run_output_paths.keys())
+                        left_log = running_logs.get(compare_labels[0], "") if len(compare_labels) > 0 else ""
+                        right_log = running_logs.get(compare_labels[1], "") if len(compare_labels) > 1 else ""
+                        return_dict[output_row_single] = gr.update(visible=False)
+                        return_dict[output_row_compare] = gr.update(visible=True)
+                        return_dict[output_box_compare_left] = left_log
+                        return_dict[output_box_compare_right] = right_log
+                    else:
+                        return_dict[output_row_single] = gr.update(visible=True)
+                        return_dict[output_row_compare] = gr.update(visible=False)
                 if "loss_viewer" in running_info:
                     return_dict[loss_viewer] = running_info["loss_viewer"]
 
@@ -438,25 +522,62 @@ class Runner:
 
                 yield return_dict
 
-            try:
-                stderr = self.trainer.communicate(timeout=2)[1]
-                return_code = self.trainer.returncode
-            except TimeoutExpired:
-                continue
+            all_finished = True
+            for label, trainer in self.trainers.items():
+                return_code = trainer.poll()
+                if return_code is None:
+                    all_finished = False
+                else:
+                    return_codes[label] = return_code
 
-        if return_code == 0 or self.aborted:
+            if any(return_code not in (None, 0) for return_code in return_codes.values()) and not self.aborted:
+                for trainer in self.trainers.values():
+                    if trainer.poll() is None:
+                        abort_process(trainer.pid)
+                all_finished = False
+
+            if all_finished:
+                break
+
+            time.sleep(2)
+
+        stderrs: dict[str, str] = {}
+        for label, trainer in self.trainers.items():
+            _, stderr = trainer.communicate()
+            stderrs[label] = stderr
+            if label not in return_codes:
+                return_codes[label] = trainer.returncode or 0
+
+        if self.aborted or all(return_code == 0 for return_code in return_codes.values()):
             finish_info = ALERTS["info_finished"][lang]
             if self.do_train:
                 finish_log = ALERTS["info_finished"][lang] + "\n\n" + running_log
             else:
                 finish_log = load_eval_results(os.path.join(output_path, "all_results.json")) + "\n\n" + running_log
         else:
-            print(stderr)
+            failed_label = next((label for label, return_code in return_codes.items() if return_code != 0), "unknown")
+            failed_stderr = stderrs.get(failed_label, "")
+            print(failed_stderr)
             finish_info = ALERTS["err_failed"][lang]
-            finish_log = ALERTS["err_failed"][lang] + f" Exit code: {return_code}\n\n```\n{stderr}\n```\n"
+            finish_log = (
+                ALERTS["err_failed"][lang]
+                + f" [{failed_label}] Exit code: {return_codes.get(failed_label, -1)}\n\n```\n{failed_stderr}\n```"
+            )
 
         self._finalize(lang, finish_info)
         return_dict = {output_box: finish_log, progress_bar: gr.Slider(visible=False)}
+        if output_row_single is not None and output_row_compare is not None:
+            if self.compare_mode and output_box_compare_left is not None and output_box_compare_right is not None:
+                compare_labels = list(self.run_output_paths.keys())
+                left_log = running_logs.get(compare_labels[0], "") if len(compare_labels) > 0 else ""
+                right_log = running_logs.get(compare_labels[1], "") if len(compare_labels) > 1 else ""
+                return_dict[output_row_single] = gr.update(visible=False)
+                return_dict[output_row_compare] = gr.update(visible=True)
+                return_dict[output_box_compare_left] = left_log
+                return_dict[output_box_compare_right] = right_log
+            else:
+                return_dict[output_row_single] = gr.update(visible=True)
+                return_dict[output_row_compare] = gr.update(visible=False)
         yield return_dict
 
     def save_args(self, data):

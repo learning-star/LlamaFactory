@@ -36,6 +36,13 @@ USAGE = (
 
 
 def launch():
+    if sys.version_info >= (3, 14):
+        raise RuntimeError(
+            "LLaMA Factory does not currently support Python 3.14. "
+            "Use Python 3.11, 3.12, or 3.13 instead. "
+            "This prevents downstream incompatibilities in gradio/dill on 3.14."
+        )
+
     from .extras import logging
     from .extras.env import VERSION, print_env
     from .extras.misc import find_available_port, get_device_count, is_env_enabled, use_kt, use_ray

@@ -66,6 +66,33 @@ def gen_loss_plot(trainer_log: list[dict[str, Any]]) -> "matplotlib.figure.Figur
     return fig
 
 
+def gen_loss_compare_plot(trainer_logs: dict[str, list[dict[str, Any]]]) -> "matplotlib.figure.Figure":
+    r"""Plot multiple smoothed loss curves in LlamaBoard."""
+    plt.close("all")
+    plt.switch_backend("agg")
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    color_cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
+
+    for idx, (label, trainer_log) in enumerate(trainer_logs.items()):
+        steps, losses = [], []
+        for log in trainer_log:
+            if log.get("loss", None):
+                steps.append(log["current_steps"])
+                losses.append(log["loss"])
+
+        if len(losses) == 0:
+            continue
+
+        color = color_cycle[idx % len(color_cycle)] if color_cycle else "#1f77b4"
+        ax.plot(steps, smooth(losses), color=color, label=label)
+
+    ax.legend()
+    ax.set_xlabel("step")
+    ax.set_ylabel("loss")
+    return fig
+
+
 def plot_loss(save_dictionary: str, keys: list[str] = ["loss"]) -> None:
     r"""Plot loss curves and saves the image."""
     plt.switch_backend("agg")
