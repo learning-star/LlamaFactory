@@ -384,6 +384,17 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
         )
     )
 
+    with gr.Accordion("EcoPhase.AI Plugin", open=False) as ecophase_tab:
+        use_ecophase_plugin = gr.Checkbox(value=False, label="Use EcoPhase.AI Plugin")
+
+    input_elems.add(use_ecophase_plugin)
+    elem_dict.update(
+        dict(
+            ecophase_tab=ecophase_tab,
+            use_ecophase_plugin=use_ecophase_plugin,
+        )
+    )
+
     with gr.Row():
         cmd_preview_btn = gr.Button()
         arg_save_btn = gr.Button()
@@ -392,26 +403,31 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
         stop_btn = gr.Button(variant="stop")
 
     with gr.Row():
-        with gr.Column(scale=3):
-            with gr.Row():
-                current_time = gr.Textbox(visible=False, interactive=False)
-                output_dir = gr.Dropdown(allow_custom_value=True)
-                config_path = gr.Dropdown(allow_custom_value=True)
+        with gr.Accordion("输出目录", open=False):
+            current_time = gr.Textbox(visible=False, interactive=False)
+            output_dir = gr.Dropdown(allow_custom_value=True)
+            config_path = gr.Dropdown(allow_custom_value=True)
 
-            with gr.Row():
-                device_count = gr.Textbox(value=str(get_device_count() or 1), interactive=False)
-                ds_stage = gr.Dropdown(choices=["none", "2", "3"], value="none")
-                ds_offload = gr.Checkbox()
+        with gr.Accordion("设备数量", open=False):
+            device_count = gr.Textbox(value=str(get_device_count() or 1), interactive=False)
+            ds_stage = gr.Dropdown(choices=["none", "2", "3"], value="none")
+            ds_offload = gr.Checkbox()
 
-            with gr.Row():
-                resume_btn = gr.Checkbox(visible=False, interactive=False)
-                progress_bar = gr.Slider(visible=False, interactive=False)
+    with gr.Row():
+        resume_btn = gr.Checkbox(visible=False, interactive=False)
+        progress_bar = gr.Slider(visible=False, interactive=False)
 
-            with gr.Row():
-                output_box = gr.Markdown()
+    with gr.Row():
+        loss_viewer = gr.Plot()
 
+    with gr.Row(visible=False) as output_row_single:
+        output_box = gr.Textbox(show_label=False, lines=22, interactive=False)
+
+    with gr.Row(visible=False) as output_row_compare:
         with gr.Column(scale=1):
-            loss_viewer = gr.Plot()
+            output_box_compare_left = gr.Textbox(show_label=False, lines=22, interactive=False)
+        with gr.Column(scale=1):
+            output_box_compare_right = gr.Textbox(show_label=False, lines=22, interactive=False)
 
     input_elems.update({output_dir, config_path, ds_stage, ds_offload})
     elem_dict.update(
@@ -429,11 +445,24 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
             ds_offload=ds_offload,
             resume_btn=resume_btn,
             progress_bar=progress_bar,
+            output_row_single=output_row_single,
+            output_row_compare=output_row_compare,
             output_box=output_box,
+            output_box_compare_left=output_box_compare_left,
+            output_box_compare_right=output_box_compare_right,
             loss_viewer=loss_viewer,
         )
     )
-    output_elems = [output_box, progress_bar, loss_viewer, swanlab_link]
+    output_elems = [
+        output_row_single,
+        output_row_compare,
+        output_box,
+        output_box_compare_left,
+        output_box_compare_right,
+        progress_bar,
+        loss_viewer,
+        swanlab_link,
+    ]
 
     cmd_preview_btn.click(engine.runner.preview_train, input_elems, output_elems, concurrency_limit=None)
     start_btn.click(engine.runner.run_train, input_elems, output_elems)

@@ -28,7 +28,7 @@ from ..extras.constants import (
     TRAINING_STAGES,
 )
 from ..extras.packages import is_gradio_available, is_matplotlib_available
-from ..extras.ploting import gen_loss_plot
+from ..extras.ploting import gen_loss_compare_plot, gen_loss_plot
 from ..model import QuantizationMethod
 from .common import DEFAULT_CONFIG_DIR, DEFAULT_DATA_DIR, get_model_path, get_save_dir, get_template, load_dataset_info
 from .locales import ALERTS
@@ -104,8 +104,40 @@ def check_template(lang: str, template: str) -> None:
         gr.Warning(ALERTS["warn_no_instruct"][lang])
 
 
+def _load_trainer_monitor(
+    output_path: os.PathLike,
+) -> tuple[str, dict[str, Any] | None, list[dict[str, Any]], str | None]:
+    r"""Load training monitor artifacts from one output directory."""
+    running_log = ""
+    latest_log: dict[str, Any] | None = None
+    trainer_log: list[dict[str, Any]] = []
+    swanlab_link: str | None = None
+
+    running_log_path = os.path.join(output_path, RUNNING_LOG)
+    if os.path.isfile(running_log_path):
+        with open(running_log_path, encoding="utf-8") as f:
+            running_log = f.read()[-20000:]  # avoid lengthy log
+
+    trainer_log_path = os.path.join(output_path, TRAINER_LOG)
+    if os.path.isfile(trainer_log_path):
+        with open(trainer_log_path, encoding="utf-8") as f:
+            for line in f:
+                trainer_log.append(json.loads(line))
+
+        if len(trainer_log) != 0:
+            latest_log = trainer_log[-1]
+
+    swanlab_config_path = os.path.join(output_path, SWANLAB_CONFIG)
+    if os.path.isfile(swanlab_config_path):
+        with open(swanlab_config_path, encoding="utf-8") as f:
+            swanlab_public_config = json.load(f)
+            swanlab_link = swanlab_public_config["cloud"]["experiment_url"]
+
+    return running_log, latest_log, trainer_log, swanlab_link
+
+
 def get_trainer_info(lang: str, output_path: os.PathLike, do_train: bool) -> tuple[str, "gr.Slider", dict[str, Any]]:
-    r"""Get training infomation for monitor.
+    r"""Get training information for monitor.
 
     If do_train is True:
         Inputs: top.lang, train.output_path
@@ -114,47 +146,72 @@ def get_trainer_info(lang: str, output_path: os.PathLike, do_train: bool) -> tup
         Inputs: top.lang, eval.output_path
         Outputs: eval.output_box, eval.progress_bar, None, None
     """
-    running_log = ""
+    running_log, latest_log, trainer_log, swanlab_link = _load_trainer_monitor(output_path)
     running_progress = gr.Slider(visible=False)
     running_info = {}
 
-    running_log_path = os.path.join(output_path, RUNNING_LOG)
-    if os.path.isfile(running_log_path):
-        with open(running_log_path, encoding="utf-8") as f:
-            running_log = "```\n" + f.read()[-20000:] + "\n```\n"  # avoid lengthy log
+    if latest_log is not None:
+        percentage = latest_log["percentage"]
+        label = "Running {:d}/{:d}: {} < {}".format(
+            latest_log["current_steps"],
+            latest_log["total_steps"],
+            latest_log["elapsed_time"],
+            latest_log["remaining_time"],
+        )
+        running_progress = gr.Slider(label=label, value=percentage, visible=True)
 
-    trainer_log_path = os.path.join(output_path, TRAINER_LOG)
-    if os.path.isfile(trainer_log_path):
-        trainer_log: list[dict[str, Any]] = []
-        with open(trainer_log_path, encoding="utf-8") as f:
-            for line in f:
-                trainer_log.append(json.loads(line))
+        if do_train and is_matplotlib_available():
+            running_info["loss_viewer"] = gr.Plot(gen_loss_plot(trainer_log))
 
-        if len(trainer_log) != 0:
-            latest_log = trainer_log[-1]
-            percentage = latest_log["percentage"]
-            label = "Running {:d}/{:d}: {} < {}".format(
-                latest_log["current_steps"],
-                latest_log["total_steps"],
-                latest_log["elapsed_time"],
-                latest_log["remaining_time"],
-            )
-            running_progress = gr.Slider(label=label, value=percentage, visible=True)
+    if swanlab_link is not None:
+        running_info["swanlab_link"] = gr.Markdown(ALERTS["info_swanlab_link"][lang] + swanlab_link, visible=True)
 
-            if do_train and is_matplotlib_available():
-                running_info["loss_viewer"] = gr.Plot(gen_loss_plot(trainer_log))
-
-    swanlab_config_path = os.path.join(output_path, SWANLAB_CONFIG)
-    if os.path.isfile(swanlab_config_path):
-        with open(swanlab_config_path, encoding="utf-8") as f:
-            swanlab_public_config = json.load(f)
-            swanlab_link = swanlab_public_config["cloud"]["experiment_url"]
-            if swanlab_link is not None:
-                running_info["swanlab_link"] = gr.Markdown(
-                    ALERTS["info_swanlab_link"][lang] + swanlab_link, visible=True
-                )
+    if running_log:
+        running_log = "```\n" + running_log + "\n```\n"
 
     return running_log, running_progress, running_info
+
+
+def get_compare_trainer_info(
+    lang: str, output_paths: dict[str, os.PathLike], do_train: bool
+) -> tuple[dict[str, str], "gr.Slider", dict[str, Any]]:
+    r"""Get monitor information for multiple concurrent training runs."""
+    running_logs: dict[str, str] = {}
+    progress_parts = []
+    progress_values = []
+    trainer_logs: dict[str, list[dict[str, Any]]] = {}
+    swanlab_links = []
+
+    for label, output_path in output_paths.items():
+        running_log, latest_log, trainer_log, swanlab_link = _load_trainer_monitor(output_path)
+        if running_log:
+            running_logs[label] = f"{label}\n\n{running_log}"
+
+        if latest_log is not None:
+            progress_parts.append(
+                f"{label} {latest_log['current_steps']}/{latest_log['total_steps']}: "
+                f"{latest_log['elapsed_time']} < {latest_log['remaining_time']}"
+            )
+            progress_values.append(latest_log["percentage"])
+
+        if len(trainer_log) != 0:
+            trainer_logs[label] = trainer_log
+
+        if swanlab_link is not None:
+            swanlab_links.append(f"### {label}\n{ALERTS['info_swanlab_link'][lang] + swanlab_link}")
+
+    running_progress = gr.Slider(visible=False)
+    running_info = {}
+
+    if progress_parts:
+        running_progress = gr.Slider(label=" | ".join(progress_parts), value=sum(progress_values) / len(progress_values), visible=True)
+        if do_train and is_matplotlib_available() and len(trainer_logs) != 0:
+            running_info["loss_viewer"] = gr.Plot(gen_loss_compare_plot(trainer_logs))
+
+    if swanlab_links:
+        running_info["swanlab_link"] = gr.Markdown("\n\n".join(swanlab_links), visible=True)
+
+    return running_logs, running_progress, running_info
 
 
 def list_checkpoints(model_name: str, finetuning_type: str) -> "gr.Dropdown":
