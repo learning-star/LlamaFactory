@@ -14,6 +14,7 @@
 
 import json
 import os
+import sys
 import time
 from collections.abc import Generator
 from copy import deepcopy
@@ -141,7 +142,7 @@ class Runner:
         if args.get("deepspeed", None) is not None:
             env["FORCE_TORCHRUN"] = "1"
 
-        return Popen(["llamafactory-cli", "train", save_cmd(args)], env=env, stderr=PIPE, text=True)
+        return Popen([sys.executable, "-m", "llamafactory.cli", "train", save_cmd(args)], env=env, stderr=PIPE, text=True)
 
     def _build_training_runs(
         self, args: dict[str, Any], output_path: str, plugin_enabled: bool
