@@ -2068,6 +2068,84 @@ LOCALES = {
             "info": "[SwanLab](https://swanlab.cn/) を有効にして実験の追跡と可視化を行います。",
         },
     },
+    "ecophase_title": {
+        "en": {
+            "value": "### EcoPhase.AI Plugin",
+        },
+        "ru": {
+            "value": "### Плагин EcoPhase.AI",
+        },
+        "zh": {
+            "value": "### EcoPhase.AI Plugin",
+        },
+        "ko": {
+            "value": "### EcoPhase.AI 플러그인",
+        },
+        "ja": {
+            "value": "### EcoPhase.AI プラグイン",
+        },
+    },
+    "ecophase_notice": {
+        "en": {
+            "value": "<b>Click Start to launch two training jobs: Baseline and EcoPhase.AI Plugin.</b>",
+        },
+        "ru": {
+            "value": "<b>Нажмите Start, чтобы запустить две задачи обучения: Baseline и EcoPhase.AI Plugin.</b>",
+        },
+        "zh": {
+            "value": "<b>点击 Start 将同时启动两个训练任务：Baseline 和 EcoPhase.AI Plugin。</b>",
+        },
+        "ko": {
+            "value": "<b>Start를 클릭하면 Baseline과 EcoPhase.AI Plugin 두 개의 학습 작업이 함께 시작됩니다.</b>",
+        },
+        "ja": {
+            "value": "<b>Start をクリックすると、Baseline と EcoPhase.AI Plugin の 2 つの学習ジョブが同時に開始されます。</b>",
+        },
+    },
+    "ecophase_username": {
+        "en": {
+            "label": "Username",
+            "info": "Account name used by EcoPhase.AI Plugin.",
+        },
+        "ru": {
+            "label": "Имя пользователя",
+            "info": "Имя учетной записи для плагина EcoPhase.AI.",
+        },
+        "zh": {
+            "label": "用户名",
+            "info": "EcoPhase.AI Plugin 使用的账号名称。",
+        },
+        "ko": {
+            "label": "사용자 이름",
+            "info": "EcoPhase.AI 플러그인에 사용할 계정 이름.",
+        },
+        "ja": {
+            "label": "ユーザー名",
+            "info": "EcoPhase.AI プラグインで使用するアカウント名。",
+        },
+    },
+    "ecophase_api_key": {
+        "en": {
+            "label": "API Key",
+            "info": "API key used by EcoPhase.AI Plugin.",
+        },
+        "ru": {
+            "label": "API ключ",
+            "info": "API ключ для плагина EcoPhase.AI.",
+        },
+        "zh": {
+            "label": "API Key",
+            "info": "EcoPhase.AI Plugin 使用的 API Key。",
+        },
+        "ko": {
+            "label": "API 키",
+            "info": "EcoPhase.AI 플러그인에 사용할 API 키.",
+        },
+        "ja": {
+            "label": "API キー",
+            "info": "EcoPhase.AI プラグインで使用する API キー。",
+        },
+    },
     "swanlab_project": {
         "en": {
             "label": "SwanLab project",
@@ -3102,6 +3180,13 @@ ALERTS = {
         "zh": "训练完毕。",
         "ko": "완료되었습니다.",
         "ja": "トレーニングが完了しました。",
+    },
+    "info_ecophase_dual_start": {
+        "en": "Starting two training jobs: Baseline and EcoPhase.AI Plugin.",
+        "ru": "Запускаются две задачи обучения: Baseline и EcoPhase.AI Plugin.",
+        "zh": "正在启动两个训练任务：Baseline 和 EcoPhase.AI Plugin。",
+        "ko": "Baseline과 EcoPhase.AI Plugin 두 개의 학습 작업을 시작합니다.",
+        "ja": "Baseline と EcoPhase.AI Plugin の 2 つの学習ジョブを開始します。",
     },
     "info_config_saved": {
         "en": "Arguments have been saved at: ",

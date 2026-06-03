@@ -129,15 +129,32 @@ class Runner:
         self.running_data = None
         torch_gc()
 
-    def _launch_trainer(self, args: dict[str, Any], output_dir: str, enable_plugin: bool = False) -> Popen:
+    def _launch_trainer(
+        self,
+        args: dict[str, Any],
+        output_dir: str,
+        enable_plugin: bool = False,
+        plugin_username: str | None = None,
+        plugin_api_key: str | None = None,
+    ) -> Popen:
         r"""Launch one trainer subprocess."""
         env = deepcopy(os.environ)
         env["LLAMABOARD_ENABLED"] = "1"
         env["LLAMABOARD_WORKDIR"] = output_dir
         if enable_plugin:
             env["ECOPHASE_AI_PLUGIN"] = "1"
+            if plugin_username:
+                env["ECOPHASE_AI_USERNAME"] = plugin_username
+            else:
+                env.pop("ECOPHASE_AI_USERNAME", None)
+            if plugin_api_key:
+                env["ECOPHASE_AI_API_KEY"] = plugin_api_key
+            else:
+                env.pop("ECOPHASE_AI_API_KEY", None)
         else:
             env.pop("ECOPHASE_AI_PLUGIN", None)
+            env.pop("ECOPHASE_AI_USERNAME", None)
+            env.pop("ECOPHASE_AI_API_KEY", None)
 
         if args.get("deepspeed", None) is not None:
             env["FORCE_TORCHRUN"] = "1"
@@ -413,7 +430,12 @@ class Runner:
         else:
             self.do_train, self.running_data = do_train, data
             args = self._parse_train_args(data) if do_train else self._parse_eval_args(data)
-            plugin_enabled = bool(data[self.manager.get_elem_by_id("train.use_ecophase_plugin")]) if do_train else False
+            plugin_enabled = do_train
+            plugin_username = data[self.manager.get_elem_by_id("train.ecophase_username")] if do_train else None
+            plugin_api_key = data[self.manager.get_elem_by_id("train.ecophase_api_key")] if do_train else None
+
+            if do_train:
+                gr.Info(ALERTS["info_ecophase_dual_start"][data[self.manager.get_elem_by_id("top.lang")]])
 
             os.makedirs(args["output_dir"], exist_ok=True)
             save_args(os.path.join(args["output_dir"], LLAMABOARD_CONFIG), self._build_config_dict(data))
@@ -427,7 +449,13 @@ class Runner:
                 os.makedirs(run_output_dir, exist_ok=True)
                 self.run_output_paths[label] = run_output_dir
                 # NOTE: DO NOT USE shell=True to avoid security risk
-                self.trainers[label] = self._launch_trainer(run_args, run_output_dir, enable_plugin=enable_plugin)
+                self.trainers[label] = self._launch_trainer(
+                    run_args,
+                    run_output_dir,
+                    enable_plugin=enable_plugin,
+                    plugin_username=plugin_username,
+                    plugin_api_key=plugin_api_key,
+                )
 
             yield from self.monitor()
 
@@ -607,7 +635,10 @@ class Runner:
 
         output_dict: dict[Component, Any] = {output_box: ALERTS["info_config_loaded"][lang]}
         for elem_id, value in config_dict.items():
-            output_dict[self.manager.get_elem_by_id(elem_id)] = value
+            try:
+                output_dict[self.manager.get_elem_by_id(elem_id)] = value
+            except KeyError:
+                continue
 
         return output_dict
 

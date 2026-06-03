@@ -384,14 +384,21 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
         )
     )
 
-    with gr.Accordion("EcoPhase.AI Plugin", open=False) as ecophase_tab:
-        use_ecophase_plugin = gr.Checkbox(value=False, label="Use EcoPhase.AI Plugin")
+    with gr.Group() as ecophase_tab:
+        ecophase_title = gr.Markdown()
+        ecophase_notice = gr.Markdown()
+        with gr.Row():
+            ecophase_username = gr.Textbox()
+            ecophase_api_key = gr.Textbox(type="password")
 
-    input_elems.add(use_ecophase_plugin)
+    input_elems.update({ecophase_username, ecophase_api_key})
     elem_dict.update(
         dict(
             ecophase_tab=ecophase_tab,
-            use_ecophase_plugin=use_ecophase_plugin,
+            ecophase_title=ecophase_title,
+            ecophase_notice=ecophase_notice,
+            ecophase_username=ecophase_username,
+            ecophase_api_key=ecophase_api_key,
         )
     )
 
