@@ -427,6 +427,12 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
     with gr.Row():
         loss_viewer = gr.Plot()
 
+    with gr.Row():
+        eval_loss_viewer = gr.Plot()
+
+    with gr.Row():
+        eval_accuracy_viewer = gr.Plot()
+
     with gr.Row(visible=False) as output_row_single:
         output_box = gr.Textbox(show_label=False, lines=22, interactive=False)
 
@@ -458,6 +464,8 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
             output_box_compare_left=output_box_compare_left,
             output_box_compare_right=output_box_compare_right,
             loss_viewer=loss_viewer,
+            eval_loss_viewer=eval_loss_viewer,
+            eval_accuracy_viewer=eval_accuracy_viewer,
         )
     )
     output_elems = [
@@ -468,6 +476,8 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
         output_box_compare_right,
         progress_bar,
         loss_viewer,
+        eval_loss_viewer,
+        eval_accuracy_viewer,
         swanlab_link,
     ]
 

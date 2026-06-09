@@ -35,6 +35,23 @@ if is_gradio_available():
     import gradio as gr
 
 
+def _get_gradio_launch_kwargs(gradio_ipv6: bool) -> dict:
+    server_name = os.getenv("GRADIO_SERVER_NAME", "[::]" if gradio_ipv6 else "0.0.0.0")
+    server_port = os.getenv("GRADIO_SERVER_PORT")
+    root_path = os.getenv("GRADIO_ROOT_PATH", "").strip()
+
+    launch_kwargs = dict(
+        server_name=server_name,
+        inbrowser=is_env_enabled("GRADIO_INBROWSER", "1"),
+    )
+    if server_port:
+        launch_kwargs["server_port"] = int(server_port)
+    if root_path:
+        launch_kwargs["root_path"] = root_path
+
+    return launch_kwargs
+
+
 def create_ui(demo_mode: bool = False) -> "gr.Blocks":
     engine = Engine(demo_mode=demo_mode, pure_chat=False)
     hostname = os.getenv("HOSTNAME", os.getenv("COMPUTERNAME", platform.node())).split(".")[0]
@@ -91,16 +108,14 @@ def create_web_demo() -> "gr.Blocks":
 def run_web_ui() -> None:
     gradio_ipv6 = is_env_enabled("GRADIO_IPV6")
     gradio_share = is_env_enabled("GRADIO_SHARE")
-    server_name = os.getenv("GRADIO_SERVER_NAME", "[::]" if gradio_ipv6 else "0.0.0.0")
     print("Visit http://ip:port for Web UI, e.g., http://127.0.0.1:7860")
     fix_proxy(ipv6_enabled=gradio_ipv6)
-    create_ui().queue().launch(share=gradio_share, server_name=server_name, inbrowser=True)
+    create_ui().queue().launch(share=gradio_share, **_get_gradio_launch_kwargs(gradio_ipv6))
 
 
 def run_web_demo() -> None:
     gradio_ipv6 = is_env_enabled("GRADIO_IPV6")
     gradio_share = is_env_enabled("GRADIO_SHARE")
-    server_name = os.getenv("GRADIO_SERVER_NAME", "[::]" if gradio_ipv6 else "0.0.0.0")
     print("Visit http://ip:port for Web UI, e.g., http://127.0.0.1:7860")
     fix_proxy(ipv6_enabled=gradio_ipv6)
-    create_web_demo().queue().launch(share=gradio_share, server_name=server_name, inbrowser=True)
+    create_web_demo().queue().launch(share=gradio_share, **_get_gradio_launch_kwargs(gradio_ipv6))

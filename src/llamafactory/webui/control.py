@@ -28,7 +28,7 @@ from ..extras.constants import (
     TRAINING_STAGES,
 )
 from ..extras.packages import is_gradio_available, is_matplotlib_available
-from ..extras.ploting import gen_loss_compare_plot, gen_loss_plot
+from ..extras.ploting import gen_loss_compare_plot, gen_loss_plot, gen_metric_compare_plot, gen_metric_plot
 from ..model import QuantizationMethod
 from .common import DEFAULT_CONFIG_DIR, DEFAULT_DATA_DIR, get_model_path, get_save_dir, get_template, load_dataset_info
 from .locales import ALERTS
@@ -136,6 +136,11 @@ def _load_trainer_monitor(
     return running_log, latest_log, trainer_log, swanlab_link
 
 
+def _has_metric(trainer_log: list[dict[str, Any]], metric_key: str) -> bool:
+    r"""Check whether a trainer log contains at least one metric value."""
+    return any(log.get(metric_key, None) is not None for log in trainer_log)
+
+
 def get_trainer_info(lang: str, output_path: os.PathLike, do_train: bool) -> tuple[str, "gr.Slider", dict[str, Any]]:
     r"""Get training information for monitor.
 
@@ -161,7 +166,14 @@ def get_trainer_info(lang: str, output_path: os.PathLike, do_train: bool) -> tup
         running_progress = gr.Slider(label=label, value=percentage, visible=True)
 
         if do_train and is_matplotlib_available():
-            running_info["loss_viewer"] = gr.Plot(gen_loss_plot(trainer_log))
+            if _has_metric(trainer_log, "loss"):
+                running_info["loss_viewer"] = gr.Plot(gen_loss_plot(trainer_log))
+            if _has_metric(trainer_log, "eval_loss"):
+                running_info["eval_loss_viewer"] = gr.Plot(gen_metric_plot(trainer_log, "eval_loss", "eval_loss"))
+            if _has_metric(trainer_log, "eval_accuracy"):
+                running_info["eval_accuracy_viewer"] = gr.Plot(
+                    gen_metric_plot(trainer_log, "eval_accuracy", "eval_accuracy")
+                )
 
     if swanlab_link is not None:
         running_info["swanlab_link"] = gr.Markdown(ALERTS["info_swanlab_link"][lang] + swanlab_link, visible=True)
@@ -206,7 +218,16 @@ def get_compare_trainer_info(
     if progress_parts:
         running_progress = gr.Slider(label=" | ".join(progress_parts), value=sum(progress_values) / len(progress_values), visible=True)
         if do_train and is_matplotlib_available() and len(trainer_logs) != 0:
-            running_info["loss_viewer"] = gr.Plot(gen_loss_compare_plot(trainer_logs))
+            if any(_has_metric(trainer_log, "loss") for trainer_log in trainer_logs.values()):
+                running_info["loss_viewer"] = gr.Plot(gen_loss_compare_plot(trainer_logs))
+            if any(_has_metric(trainer_log, "eval_loss") for trainer_log in trainer_logs.values()):
+                running_info["eval_loss_viewer"] = gr.Plot(
+                    gen_metric_compare_plot(trainer_logs, "eval_loss", "eval_loss")
+                )
+            if any(_has_metric(trainer_log, "eval_accuracy") for trainer_log in trainer_logs.values()):
+                running_info["eval_accuracy_viewer"] = gr.Plot(
+                    gen_metric_compare_plot(trainer_logs, "eval_accuracy", "eval_accuracy")
+                )
 
     if swanlab_links:
         running_info["swanlab_link"] = gr.Markdown("\n\n".join(swanlab_links), visible=True)

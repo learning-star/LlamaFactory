@@ -2497,6 +2497,40 @@ LOCALES = {
             "label": "損失",
         },
     },
+    "eval_loss_viewer": {
+        "en": {
+            "label": "Eval loss",
+        },
+        "ru": {
+            "label": "Eval loss",
+        },
+        "zh": {
+            "label": "验证损失",
+        },
+        "ko": {
+            "label": "Eval loss",
+        },
+        "ja": {
+            "label": "Eval loss",
+        },
+    },
+    "eval_accuracy_viewer": {
+        "en": {
+            "label": "Eval accuracy",
+        },
+        "ru": {
+            "label": "Eval accuracy",
+        },
+        "zh": {
+            "label": "验证准确率",
+        },
+        "ko": {
+            "label": "Eval accuracy",
+        },
+        "ja": {
+            "label": "Eval accuracy",
+        },
+    },
     "predict": {
         "en": {
             "label": "Save predictions",
@@ -3089,6 +3123,13 @@ ALERTS = {
         "zh": "请选择奖励模型。",
         "ko": "리워드 모델을 선택하십시오.",
         "ja": "報酬モデルを選択してください。",
+    },
+    "err_no_ecophase_credentials": {
+        "en": "Please provide EcoPhase.AI username and API key.",
+        "ru": "Укажите имя пользователя EcoPhase.AI и ключ API.",
+        "zh": "请填写 EcoPhase.AI 用户名和 API Key。",
+        "ko": "EcoPhase.AI 사용자 이름과 API 키를 입력하십시오.",
+        "ja": "EcoPhase.AI のユーザー名と API Key を入力してください。",
     },
     "err_no_export_dir": {
         "en": "Please provide export dir.",

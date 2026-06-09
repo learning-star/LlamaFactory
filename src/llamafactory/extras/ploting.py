@@ -46,28 +46,34 @@ def smooth(scalars: list[float]) -> list[float]:
     return smoothed
 
 
-def gen_loss_plot(trainer_log: list[dict[str, Any]]) -> "matplotlib.figure.Figure":
-    r"""Plot loss curves in LlamaBoard."""
+def gen_metric_plot(
+    trainer_log: list[dict[str, Any]], metric_key: str, ylabel: str | None = None
+) -> "matplotlib.figure.Figure":
+    r"""Plot metric curves in LlamaBoard."""
     plt.close("all")
     plt.switch_backend("agg")
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    steps, losses = [], []
+    steps, metrics = [], []
     for log in trainer_log:
-        if log.get("loss", None):
+        if log.get(metric_key, None) is not None:
             steps.append(log["current_steps"])
-            losses.append(log["loss"])
+            metrics.append(log[metric_key])
 
-    ax.plot(steps, losses, color="#1f77b4", alpha=0.4, label="original")
-    ax.plot(steps, smooth(losses), color="#1f77b4", label="smoothed")
-    ax.legend()
+    if len(metrics) != 0:
+        ax.plot(steps, metrics, color="#1f77b4", alpha=0.4, label="original")
+        ax.plot(steps, smooth(metrics), color="#1f77b4", label="smoothed")
+        ax.legend()
+
     ax.set_xlabel("step")
-    ax.set_ylabel("loss")
+    ax.set_ylabel(ylabel or metric_key)
     return fig
 
 
-def gen_loss_compare_plot(trainer_logs: dict[str, list[dict[str, Any]]]) -> "matplotlib.figure.Figure":
-    r"""Plot multiple smoothed loss curves in LlamaBoard."""
+def gen_metric_compare_plot(
+    trainer_logs: dict[str, list[dict[str, Any]]], metric_key: str, ylabel: str | None = None
+) -> "matplotlib.figure.Figure":
+    r"""Plot multiple smoothed metric curves in LlamaBoard."""
     plt.close("all")
     plt.switch_backend("agg")
     fig = plt.figure()
@@ -75,22 +81,34 @@ def gen_loss_compare_plot(trainer_logs: dict[str, list[dict[str, Any]]]) -> "mat
     color_cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
 
     for idx, (label, trainer_log) in enumerate(trainer_logs.items()):
-        steps, losses = [], []
+        steps, metrics = [], []
         for log in trainer_log:
-            if log.get("loss", None):
+            if log.get(metric_key, None) is not None:
                 steps.append(log["current_steps"])
-                losses.append(log["loss"])
+                metrics.append(log[metric_key])
 
-        if len(losses) == 0:
+        if len(metrics) == 0:
             continue
 
         color = color_cycle[idx % len(color_cycle)] if color_cycle else "#1f77b4"
-        ax.plot(steps, smooth(losses), color=color, label=label)
+        ax.plot(steps, smooth(metrics), color=color, label=label)
 
-    ax.legend()
+    if ax.lines:
+        ax.legend()
+
     ax.set_xlabel("step")
-    ax.set_ylabel("loss")
+    ax.set_ylabel(ylabel or metric_key)
     return fig
+
+
+def gen_loss_plot(trainer_log: list[dict[str, Any]]) -> "matplotlib.figure.Figure":
+    r"""Plot loss curves in LlamaBoard."""
+    return gen_metric_plot(trainer_log, "loss", "loss")
+
+
+def gen_loss_compare_plot(trainer_logs: dict[str, list[dict[str, Any]]]) -> "matplotlib.figure.Figure":
+    r"""Plot multiple smoothed loss curves in LlamaBoard."""
+    return gen_metric_compare_plot(trainer_logs, "loss", "loss")
 
 
 def plot_loss(save_dictionary: str, keys: list[str] = ["loss"]) -> None:

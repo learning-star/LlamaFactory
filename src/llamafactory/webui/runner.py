@@ -14,6 +14,7 @@
 
 import json
 import os
+import re
 import sys
 import time
 from collections.abc import Generator
@@ -23,12 +24,19 @@ from typing import TYPE_CHECKING, Any
 
 from transformers.utils import is_torch_npu_available
 
-from ..extras.constants import LLAMABOARD_CONFIG, MULTIMODAL_SUPPORTED_MODELS, PEFT_METHODS, TRAINING_STAGES
+from ..extras.constants import (
+    LLAMABOARD_CONFIG,
+    MULTIMODAL_SUPPORTED_MODELS,
+    PEFT_METHODS,
+    RUNNING_LOG,
+    TRAINING_STAGES,
+)
 from ..extras.misc import is_accelerator_available, torch_gc
 from ..extras.packages import is_gradio_available
 from .common import (
     DEFAULT_CACHE_DIR,
     DEFAULT_CONFIG_DIR,
+    DEFAULT_SAVE_DIR,
     abort_process,
     calculate_pixels,
     gen_cmd,
@@ -97,6 +105,9 @@ class Runner:
             return ALERTS["err_demo"][lang]
 
         if do_train:
+            if not from_preview and (not get("train.ecophase_username") or not get("train.ecophase_api_key")):
+                return ALERTS["err_no_ecophase_credentials"][lang]
+
             if not get("train.output_dir"):
                 return ALERTS["err_no_output_dir"][lang]
 
@@ -136,30 +147,109 @@ class Runner:
         enable_plugin: bool = False,
         plugin_username: str | None = None,
         plugin_api_key: str | None = None,
+        cuda_visible_devices: str | None = None,
     ) -> Popen:
         r"""Launch one trainer subprocess."""
         env = deepcopy(os.environ)
         env["LLAMABOARD_ENABLED"] = "1"
         env["LLAMABOARD_WORKDIR"] = output_dir
+        if cuda_visible_devices:
+            env["CUDA_VISIBLE_DEVICES"] = cuda_visible_devices
+
+        for key in ("ECOPHASE_AI_PLUGIN", "ECOPHASE_AI_USERNAME", "ECOPHASE_AI_API_KEY"):
+            env.pop(key, None)
+
         if enable_plugin:
-            env["ECOPHASE_AI_PLUGIN"] = "1"
             if plugin_username:
-                env["ECOPHASE_AI_USERNAME"] = plugin_username
+                env["ECO_CLIENT_ID"] = plugin_username
             else:
-                env.pop("ECOPHASE_AI_USERNAME", None)
+                env.pop("ECO_CLIENT_ID", None)
             if plugin_api_key:
-                env["ECOPHASE_AI_API_KEY"] = plugin_api_key
+                env["ECO_API_KEY"] = plugin_api_key
             else:
-                env.pop("ECOPHASE_AI_API_KEY", None)
+                env.pop("ECO_API_KEY", None)
         else:
-            env.pop("ECOPHASE_AI_PLUGIN", None)
-            env.pop("ECOPHASE_AI_USERNAME", None)
-            env.pop("ECOPHASE_AI_API_KEY", None)
+            env.pop("ECO_CLIENT_ID", None)
+            env.pop("ECO_API_KEY", None)
+            env.pop("ECO_GRPC_ADDR", None)
+            env.pop("ECO_TLS_ROOT_CA", None)
 
         if args.get("deepspeed", None) is not None:
             env["FORCE_TORCHRUN"] = "1"
 
         return Popen([sys.executable, "-m", "llamafactory.cli", "train", save_cmd(args)], env=env, stderr=PIPE, text=True)
+
+    def _read_running_log(self, output_dir: str) -> str:
+        r"""Read the latest running log text for one trainer."""
+        running_log_path = os.path.join(output_dir, RUNNING_LOG)
+        if not os.path.isfile(running_log_path):
+            return ""
+
+        with open(running_log_path, encoding="utf-8") as f:
+            return f.read()[-20000:]
+
+    def _check_plugin_log_status(self, output_dir: str) -> str | None:
+        r"""Return plugin startup status from running logs."""
+        running_log = self._read_running_log(output_dir)
+        if "[EcoPhase] API is disabled." in running_log:
+            return "disabled"
+
+        if "[EcoPhase] EcoMonitor initialized." in running_log and "[EcoPhase] API is enabled." in running_log:
+            return "enabled"
+
+        return None
+
+    def _wait_for_plugin_startup(self, trainer: Popen, output_dir: str) -> str:
+        r"""Wait until the plugin trainer confirms API enablement or exits."""
+        timeout = int(os.getenv("ECOPHASE_PLUGIN_STARTUP_TIMEOUT_SECONDS", "120"))
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            return_code = trainer.poll()
+            if return_code is not None:
+                _, stderr = trainer.communicate()
+                return f"EcoPhase.AI Plugin failed to start. Exit code: {return_code}\n\n```\n{stderr}\n```"
+
+            if self.aborted:
+                return "EcoPhase.AI Plugin startup was aborted."
+
+            plugin_status = self._check_plugin_log_status(output_dir)
+            if plugin_status == "enabled":
+                return ""
+            if plugin_status == "disabled":
+                abort_process(trainer.pid)
+                _, stderr = trainer.communicate()
+                running_log = self._read_running_log(output_dir)
+                return (
+                    "EcoPhase.AI Plugin reported API disabled. Baseline was not started.\n\n"
+                    f"```\n{running_log}\n{stderr}\n```"
+                )
+
+            time.sleep(2)
+
+        abort_process(trainer.pid)
+        _, stderr = trainer.communicate()
+        return (
+            "EcoPhase.AI Plugin startup timed out before API enabled status was confirmed. "
+            "Baseline was not started.\n\n"
+            f"```\n{stderr}\n```"
+        )
+
+    def _apply_user_output_root(self, args: dict[str, Any], plugin_username: str | None) -> None:
+        r"""Move EcoPhase training outputs under a user-scoped root when configured."""
+        output_root = os.getenv("ECOPHASE_OUTPUT_ROOT", "").strip()
+        if not output_root or not plugin_username:
+            return
+
+        user_slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", plugin_username).strip("._-") or "unknown"
+        output_dir = os.path.normpath(str(args["output_dir"]))
+        save_root = os.path.normpath(DEFAULT_SAVE_DIR)
+        if os.path.isabs(output_dir):
+            suffix = os.path.basename(output_dir)
+        else:
+            rel_output = os.path.relpath(output_dir, save_root)
+            suffix = os.path.basename(output_dir) if rel_output.startswith("..") else rel_output
+
+        args["output_dir"] = os.path.join(output_root, user_slug, suffix)
 
     def _build_training_runs(
         self, args: dict[str, Any], output_path: str, plugin_enabled: bool
@@ -341,11 +431,14 @@ class Runner:
             args["swanlab_mode"] = get("train.swanlab_mode")
 
         # eval config
-        if get("train.val_size") > 1e-6 and args["stage"] != "ppo":
-            args["val_size"] = get("train.val_size")
+        if args["stage"] != "ppo":
+            eval_val_size = float(os.getenv("ECOPHASE_EVAL_VAL_SIZE", "0.1"))
+            args["val_size"] = max(float(get("train.val_size")), eval_val_size)
             args["eval_strategy"] = "steps"
-            args["eval_steps"] = args["save_steps"]
-            args["per_device_eval_batch_size"] = args["per_device_train_batch_size"]
+            args["eval_steps"] = int(os.getenv("ECOPHASE_EVAL_STEPS", "10000"))
+            args["per_device_eval_batch_size"] = int(os.getenv("ECOPHASE_EVAL_BATCH_SIZE", "2"))
+            args["compute_accuracy"] = True
+            args["eval_on_start"] = True
 
         # ds config
         if get("train.ds_stage") != "none":
@@ -429,12 +522,14 @@ class Runner:
             yield {output_box: error}
         else:
             self.do_train, self.running_data = do_train, data
+            self.running = True
             args = self._parse_train_args(data) if do_train else self._parse_eval_args(data)
             plugin_enabled = do_train
             plugin_username = data[self.manager.get_elem_by_id("train.ecophase_username")] if do_train else None
             plugin_api_key = data[self.manager.get_elem_by_id("train.ecophase_api_key")] if do_train else None
 
             if do_train:
+                self._apply_user_output_root(args, plugin_username)
                 gr.Info(ALERTS["info_ecophase_dual_start"][data[self.manager.get_elem_by_id("top.lang")]])
 
             os.makedirs(args["output_dir"], exist_ok=True)
@@ -445,24 +540,52 @@ class Runner:
             self.run_output_paths = {}
 
             run_specs = self._build_training_runs(args, args["output_dir"], plugin_enabled)
-            for label, (run_args, run_output_dir, enable_plugin) in run_specs.items():
+            for label, (_, run_output_dir, _) in run_specs.items():
                 os.makedirs(run_output_dir, exist_ok=True)
                 self.run_output_paths[label] = run_output_dir
-                # NOTE: DO NOT USE shell=True to avoid security risk
-                self.trainers[label] = self._launch_trainer(
-                    run_args,
-                    run_output_dir,
-                    enable_plugin=enable_plugin,
+
+            if plugin_enabled:
+                plugin_label = "EcoPhase.AI Plugin"
+                plugin_args, plugin_output_dir, _ = run_specs[plugin_label]
+                self.trainers[plugin_label] = self._launch_trainer(
+                    plugin_args,
+                    plugin_output_dir,
+                    enable_plugin=True,
                     plugin_username=plugin_username,
                     plugin_api_key=plugin_api_key,
+                    cuda_visible_devices=os.getenv("ECOPHASE_PLUGIN_CUDA_VISIBLE_DEVICES", "1"),
                 )
+                startup_error = self._wait_for_plugin_startup(self.trainers[plugin_label], plugin_output_dir)
+                if startup_error:
+                    lang = data[self.manager.get_elem_by_id("top.lang")]
+                    self._finalize(lang, ALERTS["err_failed"][lang])
+                    yield {output_box: startup_error}
+                    return
+
+                baseline_label = "Baseline"
+                baseline_args, baseline_output_dir, _ = run_specs[baseline_label]
+                # NOTE: DO NOT USE shell=True to avoid security risk
+                self.trainers[baseline_label] = self._launch_trainer(
+                    baseline_args,
+                    baseline_output_dir,
+                    enable_plugin=False,
+                    cuda_visible_devices=os.getenv("ECOPHASE_BASELINE_CUDA_VISIBLE_DEVICES", "0"),
+                )
+            else:
+                for label, (run_args, run_output_dir, enable_plugin) in run_specs.items():
+                    # NOTE: DO NOT USE shell=True to avoid security risk
+                    self.trainers[label] = self._launch_trainer(
+                        run_args,
+                        run_output_dir,
+                        enable_plugin=enable_plugin,
+                    )
 
             yield from self.monitor()
 
     def _build_config_dict(self, data: dict["Component", Any]) -> dict[str, Any]:
         r"""Build a dictionary containing the current training configuration."""
         config_dict = {}
-        skip_ids = ["top.lang", "top.model_path", "train.output_dir", "train.config_path"]
+        skip_ids = ["top.lang", "top.model_path", "train.output_dir", "train.config_path", "train.ecophase_api_key"]
         for elem, value in data.items():
             elem_id = self.manager.get_id_by_elem(elem)
             if elem_id not in skip_ids:
@@ -499,6 +622,8 @@ class Runner:
         output_box_compare_right = self.manager.get_elem_by_id("train.output_box_compare_right") if self.do_train else None
         progress_bar = self.manager.get_elem_by_id("{}.progress_bar".format("train" if self.do_train else "eval"))
         loss_viewer = self.manager.get_elem_by_id("train.loss_viewer") if self.do_train else None
+        eval_loss_viewer = self.manager.get_elem_by_id("train.eval_loss_viewer") if self.do_train else None
+        eval_accuracy_viewer = self.manager.get_elem_by_id("train.eval_accuracy_viewer") if self.do_train else None
         swanlab_link = self.manager.get_elem_by_id("train.swanlab_link") if self.do_train else None
 
         running_log = ""
@@ -545,6 +670,12 @@ class Runner:
                         return_dict[output_row_compare] = gr.update(visible=False)
                 if "loss_viewer" in running_info:
                     return_dict[loss_viewer] = running_info["loss_viewer"]
+
+                if "eval_loss_viewer" in running_info:
+                    return_dict[eval_loss_viewer] = running_info["eval_loss_viewer"]
+
+                if "eval_accuracy_viewer" in running_info:
+                    return_dict[eval_accuracy_viewer] = running_info["eval_accuracy_viewer"]
 
                 if "swanlab_link" in running_info:
                     return_dict[swanlab_link] = running_info["swanlab_link"]
