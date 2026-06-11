@@ -40,7 +40,7 @@ def create_top() -> dict[str, "Component"]:
         hub_name = gr.Dropdown(choices=["huggingface", "modelscope", "openmind"], value=default_hub, scale=2)
 
     with gr.Row():
-        finetuning_type = gr.Dropdown(choices=METHODS, value="lora", scale=1)
+        finetuning_type = gr.Dropdown(choices=METHODS, value="full", scale=1)
         checkpoint_path = gr.Dropdown(multiselect=True, allow_custom_value=True, scale=6)
 
     with gr.Row():

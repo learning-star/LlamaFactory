@@ -207,10 +207,10 @@ class Runner:
             return_code = trainer.poll()
             if return_code is not None:
                 _, stderr = trainer.communicate()
-                return f"EcoPhase.AI Plugin failed to start. Exit code: {return_code}\n\n```\n{stderr}\n```"
+                return f"EcoTrain Plugin failed to start. Exit code: {return_code}\n\n```\n{stderr}\n```"
 
             if self.aborted:
-                return "EcoPhase.AI Plugin startup was aborted."
+                return "EcoTrain Plugin startup was aborted."
 
             plugin_status = self._check_plugin_log_status(output_dir)
             if plugin_status == "enabled":
@@ -220,7 +220,7 @@ class Runner:
                 _, stderr = trainer.communicate()
                 running_log = self._read_running_log(output_dir)
                 return (
-                    "EcoPhase.AI Plugin reported API disabled. Baseline was not started.\n\n"
+                    "EcoTrain Plugin reported API disabled. Baseline was not started.\n\n"
                     f"```\n{running_log}\n{stderr}\n```"
                 )
 
@@ -229,7 +229,7 @@ class Runner:
         abort_process(trainer.pid)
         _, stderr = trainer.communicate()
         return (
-            "EcoPhase.AI Plugin startup timed out before API enabled status was confirmed. "
+            "EcoTrain Plugin startup timed out before API enabled status was confirmed. "
             "Baseline was not started.\n\n"
             f"```\n{stderr}\n```"
         )
@@ -272,7 +272,7 @@ class Runner:
                 baseline_dir,
                 False,
             ),
-            "EcoPhase.AI Plugin": (
+            "EcoTrain Plugin": (
                 {**args, "output_dir": plugin_dir},
                 plugin_dir,
                 True,
@@ -432,13 +432,14 @@ class Runner:
 
         # eval config
         if args["stage"] != "ppo":
-            eval_val_size = float(os.getenv("ECOPHASE_EVAL_VAL_SIZE", "0.1"))
-            args["val_size"] = max(float(get("train.val_size")), eval_val_size)
-            args["eval_strategy"] = "steps"
-            args["eval_steps"] = int(os.getenv("ECOPHASE_EVAL_STEPS", "10000"))
-            args["per_device_eval_batch_size"] = int(os.getenv("ECOPHASE_EVAL_BATCH_SIZE", "2"))
-            args["compute_accuracy"] = True
-            args["eval_on_start"] = True
+            val_size = float(get("train.val_size"))
+            args["val_size"] = val_size
+            if val_size > 0:
+                args["eval_strategy"] = "steps"
+                args["eval_steps"] = int(os.getenv("ECOPHASE_EVAL_STEPS", "20"))
+                args["per_device_eval_batch_size"] = int(os.getenv("ECOPHASE_EVAL_BATCH_SIZE", "16"))
+                args["compute_accuracy"] = True
+                args["eval_on_start"] = True
 
         # ds config
         if get("train.ds_stage") != "none":
@@ -508,10 +509,30 @@ class Runner:
         error = self._initialize(data, do_train, from_preview=True)
         if error:
             gr.Warning(error)
-            yield {output_box: error}
+            output_dict = {output_box: error}
         else:
             args = self._parse_train_args(data) if do_train else self._parse_eval_args(data)
-            yield {output_box: gen_cmd(args)}
+            output_dict = {output_box: gen_cmd(args)}
+
+        if do_train:
+            self._show_train_output(output_dict)
+
+        yield output_dict
+
+    def _show_train_output(self, output_dict: dict["Component", Any]) -> dict["Component", Any]:
+        r"""Show the single training output box and hide compare output."""
+        output_row_single = self.manager.get_elem_by_id("train.output_row_single")
+        output_row_compare = self.manager.get_elem_by_id("train.output_row_compare")
+        output_dict[output_row_single] = gr.update(visible=True)
+        output_dict[output_row_compare] = gr.update(visible=False)
+        return output_dict
+
+    def _clear_train_plots(self, output_dict: dict["Component", Any]) -> dict["Component", Any]:
+        r"""Clear stale training metric plots before a new run starts."""
+        for elem_id in ("train.loss_viewer", "train.eval_loss_viewer", "train.eval_accuracy_viewer"):
+            output_dict[self.manager.get_elem_by_id(elem_id)] = gr.Plot(value=None)
+
+        return output_dict
 
     def _launch(self, data: dict["Component", Any], do_train: bool) -> Generator[dict["Component", Any], None, None]:
         r"""Start the training process."""
@@ -529,6 +550,14 @@ class Runner:
             plugin_api_key = data[self.manager.get_elem_by_id("train.ecophase_api_key")] if do_train else None
 
             if do_train:
+                yield self._clear_train_plots(
+                    {
+                        output_box: "",
+                        self.manager.get_elem_by_id("train.progress_bar"): gr.Slider(visible=False),
+                        self.manager.get_elem_by_id("train.output_row_single"): gr.update(visible=True),
+                        self.manager.get_elem_by_id("train.output_row_compare"): gr.update(visible=False),
+                    }
+                )
                 self._apply_user_output_root(args, plugin_username)
                 gr.Info(ALERTS["info_ecophase_dual_start"][data[self.manager.get_elem_by_id("top.lang")]])
 
@@ -545,7 +574,7 @@ class Runner:
                 self.run_output_paths[label] = run_output_dir
 
             if plugin_enabled:
-                plugin_label = "EcoPhase.AI Plugin"
+                plugin_label = "EcoTrain Plugin"
                 plugin_args, plugin_output_dir, _ = run_specs[plugin_label]
                 self.trainers[plugin_label] = self._launch_trainer(
                     plugin_args,
@@ -746,15 +775,16 @@ class Runner:
         error = self._initialize(data, do_train=True, from_preview=True)
         if error:
             gr.Warning(error)
-            return {output_box: error}
+            return self._show_train_output({output_box: error})
 
         lang = data[self.manager.get_elem_by_id("top.lang")]
-        config_path = data[self.manager.get_elem_by_id("train.config_path")]
+        config_path_elem = self.manager.get_elem_by_id("train.config_path")
+        config_path = data[config_path_elem] or f"{data[self.manager.get_elem_by_id('train.current_time')]}.yaml"
         os.makedirs(DEFAULT_CONFIG_DIR, exist_ok=True)
         save_path = os.path.join(DEFAULT_CONFIG_DIR, config_path)
 
         save_args(save_path, self._build_config_dict(data))
-        return {output_box: ALERTS["info_config_saved"][lang] + save_path}
+        return self._show_train_output({output_box: ALERTS["info_config_saved"][lang] + save_path, config_path_elem: config_path})
 
     def load_args(self, lang: str, config_path: str):
         r"""Load the training configuration from config path."""
@@ -762,7 +792,7 @@ class Runner:
         config_dict = load_args(os.path.join(DEFAULT_CONFIG_DIR, config_path))
         if config_dict is None:
             gr.Warning(ALERTS["err_config_not_found"][lang])
-            return {output_box: ALERTS["err_config_not_found"][lang]}
+            return self._show_train_output({output_box: ALERTS["err_config_not_found"][lang]})
 
         output_dict: dict[Component, Any] = {output_box: ALERTS["info_config_loaded"][lang]}
         for elem_id, value in config_dict.items():
@@ -771,7 +801,7 @@ class Runner:
             except KeyError:
                 continue
 
-        return output_dict
+        return self._show_train_output(output_dict)
 
     def check_output_dir(self, lang: str, model_name: str, finetuning_type: str, output_dir: str):
         r"""Restore the training status if output_dir exists."""

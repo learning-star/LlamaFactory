@@ -50,7 +50,7 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
 
     with gr.Row():
         learning_rate = gr.Textbox(value="5e-5")
-        num_train_epochs = gr.Textbox(value="3.0")
+        num_train_epochs = gr.Textbox(value="5")
         max_grad_norm = gr.Textbox(value="1.0")
         max_samples = gr.Textbox(value="100000")
         compute_type = gr.Dropdown(choices=["bf16", "fp16", "fp32", "pure_bf16"], value="bf16")
@@ -67,10 +67,10 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
     )
 
     with gr.Row():
-        cutoff_len = gr.Slider(minimum=4, maximum=131072, value=2048, step=1)
-        batch_size = gr.Slider(minimum=1, maximum=1024, value=2, step=1)
-        gradient_accumulation_steps = gr.Slider(minimum=1, maximum=1024, value=8, step=1)
-        val_size = gr.Slider(minimum=0, maximum=1, value=0, step=0.001)
+        cutoff_len = gr.Slider(minimum=4, maximum=131072, value=4096, step=1)
+        batch_size = gr.Slider(minimum=1, maximum=1024, value=16, step=1)
+        gradient_accumulation_steps = gr.Slider(minimum=1, maximum=1024, value=1, step=1)
+        val_size = gr.Slider(minimum=0, maximum=1, value=0.1, step=0.001)
         lr_scheduler_type = gr.Dropdown(choices=[scheduler.value for scheduler in SchedulerType], value="cosine")
 
     input_elems.update({cutoff_len, batch_size, gradient_accumulation_steps, val_size, lr_scheduler_type})
@@ -87,7 +87,7 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
     with gr.Accordion(open=False) as extra_tab:
         with gr.Row():
             logging_steps = gr.Slider(minimum=1, maximum=1000, value=5, step=5)
-            save_steps = gr.Slider(minimum=10, maximum=5000, value=100, step=10)
+            save_steps = gr.Slider(minimum=10, maximum=1000000, value=1000000, step=10)
             warmup_steps = gr.Slider(minimum=0, maximum=5000, value=0, step=1)
             neftune_alpha = gr.Slider(minimum=0, maximum=10, value=0, step=0.1)
             extra_args = gr.Textbox(value='{"optim": "adamw_torch"}')
@@ -404,8 +404,8 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
 
     with gr.Row():
         cmd_preview_btn = gr.Button()
-        arg_save_btn = gr.Button()
-        arg_load_btn = gr.Button()
+        arg_save_btn = gr.Button(visible=False)
+        arg_load_btn = gr.Button(visible=False)
         start_btn = gr.Button(variant="primary")
         stop_btn = gr.Button(variant="stop")
 
@@ -490,9 +490,12 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
     model_name: gr.Dropdown = engine.manager.get_elem_by_id("top.model_name")
     finetuning_type: gr.Dropdown = engine.manager.get_elem_by_id("top.finetuning_type")
 
-    arg_save_btn.click(engine.runner.save_args, input_elems, output_elems, concurrency_limit=None)
+    arg_save_btn.click(engine.runner.save_args, input_elems, output_elems + [config_path], concurrency_limit=None)
     arg_load_btn.click(
-        engine.runner.load_args, [lang, config_path], list(input_elems) + [output_box], concurrency_limit=None
+        engine.runner.load_args,
+        [lang, config_path],
+        list(input_elems) + [output_row_single, output_row_compare, output_box],
+        concurrency_limit=None,
     )
 
     dataset.focus(list_datasets, [dataset_dir, training_stage], [dataset], queue=False)

@@ -15,61 +15,36 @@
 LOCALES = {
     "title": {
         "en": {
-            "value": "<h1><center>🦙🏭LLaMA Factory: Unified Efficient Fine-Tuning of 100+ LLMs</center></h1>",
+            "value": "<h1><center>EcoTrain API - LLaMA Factory<br>测试平台</center></h1>",
         },
         "ru": {
-            "value": "<h1><center>🦙🏭LLaMA Factory: Унифицированная эффективная тонкая настройка 100+ LLMs</center></h1>",
+            "value": "<h1><center>EcoTrain API - LLaMA Factory<br>测试平台</center></h1>",
         },
         "zh": {
-            "value": "<h1><center>🦙🏭LLaMA Factory: 一站式大模型高效微调平台</center></h1>",
+            "value": "<h1><center>EcoTrain API - LLaMA Factory<br>测试平台</center></h1>",
         },
         "ko": {
-            "value": "<h1><center>🦙🏭LLaMA Factory: 100+ LLMs를 위한 통합 효율적인 튜닝</center></h1>",
+            "value": "<h1><center>EcoTrain API - LLaMA Factory<br>测试平台</center></h1>",
         },
         "ja": {
-            "value": "<h1><center>🦙🏭LLaMA Factory: 100+ LLMs の統合効率的なチューニング</center></h1>",
+            "value": "<h1><center>EcoTrain API - LLaMA Factory<br>测试平台</center></h1>",
         },
     },
     "subtitle": {
         "en": {
-            "value": (
-                "<h3><center>Visit <a href='https://github.com/hiyouga/LLaMA-Factory' target='_blank'>"
-                "GitHub Page</a> <a href='https://llamafactory.readthedocs.io/en/latest/' target='_blank'>"
-                "Documentation</a> <a href='https://blog.llamafactory.net/en/' target='_blank'>"
-                "Blog</a></center></h3>"
-            ),
+            "value": "",
         },
         "ru": {
-            "value": (
-                "<h3><center>Посетить <a href='https://github.com/hiyouga/LLaMA-Factory' target='_blank'>"
-                "страницу GitHub</a> <a href='https://llamafactory.readthedocs.io/en/latest/' target='_blank'>"
-                "Документацию</a> <a href='https://blog.llamafactory.net/en/' target='_blank'>"
-                "Блог</a></center></h3>"
-            ),
+            "value": "",
         },
         "zh": {
-            "value": (
-                "<h3><center>访问 <a href='https://github.com/hiyouga/LLaMA-Factory' target='_blank'>"
-                "GitHub 主页</a> <a href='https://llamafactory.readthedocs.io/zh-cn/latest/' target='_blank'>"
-                "官方文档</a> <a href='https://blog.llamafactory.net/' target='_blank'>"
-                "博客</a></center></h3>"
-            ),
+            "value": "",
         },
         "ko": {
-            "value": (
-                "<h3><center><a href='https://github.com/hiyouga/LLaMA-Factory' target='_blank'>"
-                "GitHub 페이지</a> <a href='https://llamafactory.readthedocs.io/en/latest/' target='_blank'>"
-                "공식 문서</a> <a href='https://blog.llamafactory.net/en/' target='_blank'>"
-                "블로그</a>를 방문하세요.</center></h3>"
-            ),
+            "value": "",
         },
         "ja": {
-            "value": (
-                "<h3><center><a href='https://github.com/hiyouga/LLaMA-Factory' target='_blank'>"
-                "GitHub ページ</a> <a href='https://llamafactory.readthedocs.io/en/latest/' target='_blank'>"
-                "ドキュメント</a> <a href='https://blog.llamafactory.net/en/' target='_blank'>"
-                "ブログ</a>にアクセスする</center></h3>"
-            ),
+            "value": "",
         },
     },
     "lang": {
@@ -2070,13 +2045,13 @@ LOCALES = {
     },
     "ecophase_title": {
         "en": {
-            "value": "### EcoPhase.AI Plugin",
+            "value": "### EcoTrain Plugin",
         },
         "ru": {
             "value": "### Плагин EcoPhase.AI",
         },
         "zh": {
-            "value": "### EcoPhase.AI Plugin",
+            "value": "### EcoTrain Plugin",
         },
         "ko": {
             "value": "### EcoPhase.AI 플러그인",
@@ -2087,25 +2062,25 @@ LOCALES = {
     },
     "ecophase_notice": {
         "en": {
-            "value": "<b>Click Start to launch two training jobs: Baseline and EcoPhase.AI Plugin.</b>",
+            "value": "<b>Click Start to launch two training jobs: Baseline and EcoTrain Plugin.</b>",
         },
         "ru": {
-            "value": "<b>Нажмите Start, чтобы запустить две задачи обучения: Baseline и EcoPhase.AI Plugin.</b>",
+            "value": "<b>Нажмите Start, чтобы запустить две задачи обучения: Baseline и EcoTrain Plugin.</b>",
         },
         "zh": {
-            "value": "<b>点击 Start 将同时启动两个训练任务：Baseline 和 EcoPhase.AI Plugin。</b>",
+            "value": "<b>点击 Start 将同时启动两个训练任务：Baseline 和 EcoTrain Plugin。</b>",
         },
         "ko": {
-            "value": "<b>Start를 클릭하면 Baseline과 EcoPhase.AI Plugin 두 개의 학습 작업이 함께 시작됩니다.</b>",
+            "value": "<b>Start를 클릭하면 Baseline과 EcoTrain Plugin 두 개의 학습 작업이 함께 시작됩니다.</b>",
         },
         "ja": {
-            "value": "<b>Start をクリックすると、Baseline と EcoPhase.AI Plugin の 2 つの学習ジョブが同時に開始されます。</b>",
+            "value": "<b>Start をクリックすると、Baseline と EcoTrain Plugin の 2 つの学習ジョブが同時に開始されます。</b>",
         },
     },
     "ecophase_username": {
         "en": {
             "label": "Username",
-            "info": "Account name used by EcoPhase.AI Plugin.",
+            "info": "Account name used by EcoTrain Plugin.",
         },
         "ru": {
             "label": "Имя пользователя",
@@ -2113,7 +2088,7 @@ LOCALES = {
         },
         "zh": {
             "label": "用户名",
-            "info": "EcoPhase.AI Plugin 使用的账号名称。",
+            "info": "EcoTrain Plugin 使用的账号名称。",
         },
         "ko": {
             "label": "사용자 이름",
@@ -2127,7 +2102,7 @@ LOCALES = {
     "ecophase_api_key": {
         "en": {
             "label": "API Key",
-            "info": "API key used by EcoPhase.AI Plugin.",
+            "info": "API key used by EcoTrain Plugin.",
         },
         "ru": {
             "label": "API ключ",
@@ -2135,7 +2110,7 @@ LOCALES = {
         },
         "zh": {
             "label": "API Key",
-            "info": "EcoPhase.AI Plugin 使用的 API Key。",
+            "info": "EcoTrain Plugin 使用的 API Key。",
         },
         "ko": {
             "label": "API 키",
@@ -2482,53 +2457,53 @@ LOCALES = {
     },
     "loss_viewer": {
         "en": {
-            "label": "Loss",
+            "label": "loss",
         },
         "ru": {
-            "label": "Потери",
+            "label": "loss",
         },
         "zh": {
-            "label": "损失",
+            "label": "loss",
         },
         "ko": {
-            "label": "손실",
+            "label": "loss",
         },
         "ja": {
-            "label": "損失",
+            "label": "loss",
         },
     },
     "eval_loss_viewer": {
         "en": {
-            "label": "Eval loss",
+            "label": "eval_loss",
         },
         "ru": {
-            "label": "Eval loss",
+            "label": "eval_loss",
         },
         "zh": {
-            "label": "验证损失",
+            "label": "eval_loss",
         },
         "ko": {
-            "label": "Eval loss",
+            "label": "eval_loss",
         },
         "ja": {
-            "label": "Eval loss",
+            "label": "eval_loss",
         },
     },
     "eval_accuracy_viewer": {
         "en": {
-            "label": "Eval accuracy",
+            "label": "eval_accuracy",
         },
         "ru": {
-            "label": "Eval accuracy",
+            "label": "eval_accuracy",
         },
         "zh": {
-            "label": "验证准确率",
+            "label": "eval_accuracy",
         },
         "ko": {
-            "label": "Eval accuracy",
+            "label": "eval_accuracy",
         },
         "ja": {
-            "label": "Eval accuracy",
+            "label": "eval_accuracy",
         },
     },
     "predict": {
@@ -3223,11 +3198,11 @@ ALERTS = {
         "ja": "トレーニングが完了しました。",
     },
     "info_ecophase_dual_start": {
-        "en": "Starting two training jobs: Baseline and EcoPhase.AI Plugin.",
-        "ru": "Запускаются две задачи обучения: Baseline и EcoPhase.AI Plugin.",
-        "zh": "正在启动两个训练任务：Baseline 和 EcoPhase.AI Plugin。",
-        "ko": "Baseline과 EcoPhase.AI Plugin 두 개의 학습 작업을 시작합니다.",
-        "ja": "Baseline と EcoPhase.AI Plugin の 2 つの学習ジョブを開始します。",
+        "en": "Starting two training jobs: Baseline and EcoTrain Plugin.",
+        "ru": "Запускаются две задачи обучения: Baseline и EcoTrain Plugin.",
+        "zh": "正在启动两个训练任务：Baseline 和 EcoTrain Plugin。",
+        "ko": "Baseline과 EcoTrain Plugin 두 개의 학습 작업을 시작합니다.",
+        "ja": "Baseline と EcoTrain Plugin の 2 つの学習ジョブを開始します。",
     },
     "info_config_saved": {
         "en": "Arguments have been saved at: ",
