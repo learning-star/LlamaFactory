@@ -167,12 +167,12 @@ def get_trainer_info(lang: str, output_path: os.PathLike, do_train: bool) -> tup
 
         if do_train and is_matplotlib_available():
             if _has_metric(trainer_log, "loss"):
-                running_info["loss_viewer"] = gr.Plot(gen_loss_plot(trainer_log))
+                running_info["loss_viewer"] = gr.update(value=gen_loss_plot(trainer_log))
             if _has_metric(trainer_log, "eval_loss"):
-                running_info["eval_loss_viewer"] = gr.Plot(gen_metric_plot(trainer_log, "eval_loss", "eval_loss"))
+                running_info["eval_loss_viewer"] = gr.update(value=gen_metric_plot(trainer_log, "eval_loss", "eval_loss"))
             if _has_metric(trainer_log, "eval_accuracy"):
-                running_info["eval_accuracy_viewer"] = gr.Plot(
-                    gen_metric_plot(trainer_log, "eval_accuracy", "eval_accuracy")
+                running_info["eval_accuracy_viewer"] = gr.update(
+                    value=gen_metric_plot(trainer_log, "eval_accuracy", "eval_accuracy")
                 )
 
     if swanlab_link is not None:
@@ -219,14 +219,14 @@ def get_compare_trainer_info(
         running_progress = gr.Slider(label=" | ".join(progress_parts), value=sum(progress_values) / len(progress_values), visible=True)
         if do_train and is_matplotlib_available() and len(trainer_logs) != 0:
             if any(_has_metric(trainer_log, "loss") for trainer_log in trainer_logs.values()):
-                running_info["loss_viewer"] = gr.Plot(gen_loss_compare_plot(trainer_logs))
+                running_info["loss_viewer"] = gr.update(value=gen_loss_compare_plot(trainer_logs))
             if any(_has_metric(trainer_log, "eval_loss") for trainer_log in trainer_logs.values()):
-                running_info["eval_loss_viewer"] = gr.Plot(
-                    gen_metric_compare_plot(trainer_logs, "eval_loss", "eval_loss")
+                running_info["eval_loss_viewer"] = gr.update(
+                    value=gen_metric_compare_plot(trainer_logs, "eval_loss", "eval_loss")
                 )
             if any(_has_metric(trainer_log, "eval_accuracy") for trainer_log in trainer_logs.values()):
-                running_info["eval_accuracy_viewer"] = gr.Plot(
-                    gen_metric_compare_plot(trainer_logs, "eval_accuracy", "eval_accuracy")
+                running_info["eval_accuracy_viewer"] = gr.update(
+                    value=gen_metric_compare_plot(trainer_logs, "eval_accuracy", "eval_accuracy")
                 )
 
     if swanlab_links:

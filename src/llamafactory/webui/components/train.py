@@ -479,6 +479,8 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
         eval_loss_viewer,
         eval_accuracy_viewer,
         swanlab_link,
+        start_btn,
+        stop_btn,
     ]
 
     cmd_preview_btn.click(engine.runner.preview_train, input_elems, output_elems, concurrency_limit=None)

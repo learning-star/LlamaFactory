@@ -19,7 +19,7 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
-from psutil import Process
+from psutil import Process, wait_procs
 from yaml import safe_dump, safe_load
 
 from ..extras import logging
@@ -44,16 +44,32 @@ USER_CONFIG = "user_config.yaml"
 
 
 def abort_process(pid: int) -> None:
-    r"""Abort the processes recursively in a bottom-up way."""
+    r"""Abort a process tree and wait for it to exit."""
     try:
-        children = Process(pid).children()
-        if children:
-            for child in children:
-                abort_process(child.pid)
-
-        os.kill(pid, signal.SIGABRT)
+        parent = Process(pid)
     except Exception:
-        pass
+        return
+
+    try:
+        processes = parent.children(recursive=True) + [parent]
+    except Exception:
+        processes = [parent]
+
+    for process in processes:
+        try:
+            os.kill(process.pid, signal.SIGABRT)
+        except Exception:
+            try:
+                process.terminate()
+            except Exception:
+                pass
+
+    _, alive = wait_procs(processes, timeout=10)
+    for process in alive:
+        try:
+            process.kill()
+        except Exception:
+            pass
 
 
 def get_save_dir(*paths: str) -> os.PathLike:
@@ -203,6 +219,7 @@ def save_cmd(args: dict[str, Any]) -> str:
     r"""Save CLI commands to launch training."""
     output_dir = args["output_dir"]
     os.makedirs(output_dir, exist_ok=True)
+    args = {**args, "save_only_model": True}
     with open(os.path.join(output_dir, TRAINING_ARGS), "w", encoding="utf-8") as f:
         safe_dump(_clean_cmd(args), f)
 

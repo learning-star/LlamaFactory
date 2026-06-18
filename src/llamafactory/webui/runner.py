@@ -20,6 +20,7 @@ import time
 from collections.abc import Generator
 from copy import deepcopy
 from subprocess import PIPE, Popen
+from threading import Lock
 from typing import TYPE_CHECKING, Any
 
 from transformers.utils import is_torch_npu_available
@@ -29,6 +30,8 @@ from ..extras.constants import (
     MULTIMODAL_SUPPORTED_MODELS,
     PEFT_METHODS,
     RUNNING_LOG,
+    SWANLAB_CONFIG,
+    TRAINER_LOG,
     TRAINING_STAGES,
 )
 from ..extras.misc import is_accelerator_available, torch_gc
@@ -64,6 +67,8 @@ if TYPE_CHECKING:
 class Runner:
     r"""A class to manage the running status of the trainers."""
 
+    PLUGIN_STDOUT_LOG = f"{RUNNING_LOG}.stdout"
+
     def __init__(self, manager: "Manager", demo_mode: bool = False) -> None:
         r"""Init a runner."""
         self.manager = manager
@@ -77,11 +82,28 @@ class Runner:
         """ State """
         self.aborted = False
         self.running = False
+        self._state_lock = Lock()
 
     def set_abort(self) -> None:
-        self.aborted = True
-        for trainer in self.trainers.values():
-            abort_process(trainer.pid)
+        with self._state_lock:
+            self.aborted = True
+            trainers = list(self.trainers.values())
+
+        for trainer in trainers:
+            if trainer.poll() is None:
+                abort_process(trainer.pid)
+
+    def _begin_run(self, data: dict["Component", Any], do_train: bool) -> str:
+        r"""Atomically validate and reserve the runner for one launch."""
+        with self._state_lock:
+            error = self._initialize(data, do_train, from_preview=False)
+            if error:
+                return error
+
+            self.do_train, self.running_data = do_train, data
+            self.aborted = False
+            self.running = True
+            return ""
 
     def _initialize(self, data: dict["Component", Any], do_train: bool, from_preview: bool) -> str:
         r"""Validate the configuration."""
@@ -132,12 +154,13 @@ class Runner:
         r"""Clean the cached memory and resets the runner."""
         finish_info = ALERTS["info_aborted"][lang] if self.aborted else finish_info
         gr.Info(finish_info)
-        self.trainers = {}
-        self.run_output_paths = {}
-        self.compare_mode = False
-        self.aborted = False
-        self.running = False
-        self.running_data = None
+        with self._state_lock:
+            self.trainers = {}
+            self.run_output_paths = {}
+            self.compare_mode = False
+            self.aborted = False
+            self.running = False
+            self.running_data = None
         torch_gc()
 
     def _launch_trainer(
@@ -156,45 +179,65 @@ class Runner:
         if cuda_visible_devices:
             env["CUDA_VISIBLE_DEVICES"] = cuda_visible_devices
 
-        for key in ("ECOPHASE_AI_PLUGIN", "ECOPHASE_AI_USERNAME", "ECOPHASE_AI_API_KEY"):
-            env.pop(key, None)
-
         if enable_plugin:
+            env["ECOPHASE_AI_PLUGIN"] = "1"
             if plugin_username:
                 env["ECO_CLIENT_ID"] = plugin_username
+                env["ECOPHASE_AI_USERNAME"] = plugin_username
             else:
                 env.pop("ECO_CLIENT_ID", None)
+                env.pop("ECOPHASE_AI_USERNAME", None)
             if plugin_api_key:
                 env["ECO_API_KEY"] = plugin_api_key
+                env["ECOPHASE_AI_API_KEY"] = plugin_api_key
             else:
                 env.pop("ECO_API_KEY", None)
+                env.pop("ECOPHASE_AI_API_KEY", None)
         else:
             env.pop("ECO_CLIENT_ID", None)
             env.pop("ECO_API_KEY", None)
             env.pop("ECO_GRPC_ADDR", None)
             env.pop("ECO_TLS_ROOT_CA", None)
+            env.pop("ECOPHASE_AI_PLUGIN", None)
+            env.pop("ECOPHASE_AI_USERNAME", None)
+            env.pop("ECOPHASE_AI_API_KEY", None)
 
         if args.get("deepspeed", None) is not None:
             env["FORCE_TORCHRUN"] = "1"
 
-        return Popen([sys.executable, "-m", "llamafactory.cli", "train", save_cmd(args)], env=env, stderr=PIPE, text=True)
+        os.makedirs(output_dir, exist_ok=True)
+        stdout_log = open(os.path.join(output_dir, self.PLUGIN_STDOUT_LOG), "a", encoding="utf-8", buffering=1)
+        try:
+            return Popen(
+                [sys.executable, "-m", "llamafactory.cli", "train", save_cmd(args)],
+                env=env,
+                stdout=stdout_log,
+                stderr=PIPE,
+                text=True,
+            )
+        finally:
+            stdout_log.close()
 
     def _read_running_log(self, output_dir: str) -> str:
         r"""Read the latest running log text for one trainer."""
-        running_log_path = os.path.join(output_dir, RUNNING_LOG)
-        if not os.path.isfile(running_log_path):
-            return ""
+        running_logs = []
+        for file_name in (RUNNING_LOG, self.PLUGIN_STDOUT_LOG):
+            running_log_path = os.path.join(output_dir, file_name)
+            if not os.path.isfile(running_log_path):
+                continue
 
-        with open(running_log_path, encoding="utf-8") as f:
-            return f.read()[-20000:]
+            with open(running_log_path, encoding="utf-8") as f:
+                running_logs.append(f.read()[-20000:])
+
+        return "\n".join(running_logs)[-30000:]
 
     def _check_plugin_log_status(self, output_dir: str) -> str | None:
         r"""Return plugin startup status from running logs."""
         running_log = self._read_running_log(output_dir)
-        if "[EcoPhase] API is disabled." in running_log:
+        if "API is disabled" in running_log:
             return "disabled"
 
-        if "[EcoPhase] EcoMonitor initialized." in running_log and "[EcoPhase] API is enabled." in running_log:
+        if "EcoMonitor initialized" in running_log and "API is enabled" in running_log:
             return "enabled"
 
         return None
@@ -333,6 +376,7 @@ class Runner:
             include_num_input_tokens_seen=True,
         )
         args.update(json.loads(get("train.extra_args")))
+        args["save_only_model"] = True
 
         # checkpoints
         if get("top.checkpoint_path"):
@@ -530,20 +574,35 @@ class Runner:
     def _clear_train_plots(self, output_dict: dict["Component", Any]) -> dict["Component", Any]:
         r"""Clear stale training metric plots before a new run starts."""
         for elem_id in ("train.loss_viewer", "train.eval_loss_viewer", "train.eval_accuracy_viewer"):
-            output_dict[self.manager.get_elem_by_id(elem_id)] = gr.Plot(value=None)
+            output_dict[self.manager.get_elem_by_id(elem_id)] = gr.update(value=None)
 
+        return output_dict
+
+    def _clear_training_monitor_artifacts(self, output_dirs: list[str]) -> None:
+        r"""Remove stale monitor artifacts so a restarted run redraws plots from fresh logs."""
+        for output_dir in output_dirs:
+            for file_name in (RUNNING_LOG, self.PLUGIN_STDOUT_LOG, TRAINER_LOG, SWANLAB_CONFIG):
+                try:
+                    os.remove(os.path.join(output_dir, file_name))
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    pass
+
+    def _set_train_button_state(self, output_dict: dict["Component", Any], running: bool) -> dict["Component", Any]:
+        r"""Update train action buttons for the current run state."""
+        output_dict[self.manager.get_elem_by_id("train.start_btn")] = gr.update(interactive=not running)
+        output_dict[self.manager.get_elem_by_id("train.stop_btn")] = gr.update(interactive=running)
         return output_dict
 
     def _launch(self, data: dict["Component", Any], do_train: bool) -> Generator[dict["Component", Any], None, None]:
         r"""Start the training process."""
         output_box = self.manager.get_elem_by_id("{}.output_box".format("train" if do_train else "eval"))
-        error = self._initialize(data, do_train, from_preview=False)
+        error = self._begin_run(data, do_train)
         if error:
             gr.Warning(error)
             yield {output_box: error}
         else:
-            self.do_train, self.running_data = do_train, data
-            self.running = True
             args = self._parse_train_args(data) if do_train else self._parse_eval_args(data)
             plugin_enabled = do_train
             plugin_username = data[self.manager.get_elem_by_id("train.ecophase_username")] if do_train else None
@@ -551,12 +610,15 @@ class Runner:
 
             if do_train:
                 yield self._clear_train_plots(
-                    {
-                        output_box: "",
-                        self.manager.get_elem_by_id("train.progress_bar"): gr.Slider(visible=False),
-                        self.manager.get_elem_by_id("train.output_row_single"): gr.update(visible=True),
-                        self.manager.get_elem_by_id("train.output_row_compare"): gr.update(visible=False),
-                    }
+                    self._set_train_button_state(
+                        {
+                            output_box: "",
+                            self.manager.get_elem_by_id("train.progress_bar"): gr.Slider(visible=False),
+                            self.manager.get_elem_by_id("train.output_row_single"): gr.update(visible=True),
+                            self.manager.get_elem_by_id("train.output_row_compare"): gr.update(visible=False),
+                        },
+                        running=True,
+                    )
                 )
                 self._apply_user_output_root(args, plugin_username)
                 gr.Info(ALERTS["info_ecophase_dual_start"][data[self.manager.get_elem_by_id("top.lang")]])
@@ -573,6 +635,9 @@ class Runner:
                 os.makedirs(run_output_dir, exist_ok=True)
                 self.run_output_paths[label] = run_output_dir
 
+            if do_train:
+                self._clear_training_monitor_artifacts(list(self.run_output_paths.values()))
+
             if plugin_enabled:
                 plugin_label = "EcoTrain Plugin"
                 plugin_args, plugin_output_dir, _ = run_specs[plugin_label]
@@ -588,7 +653,7 @@ class Runner:
                 if startup_error:
                     lang = data[self.manager.get_elem_by_id("top.lang")]
                     self._finalize(lang, ALERTS["err_failed"][lang])
-                    yield {output_box: startup_error}
+                    yield self._set_train_button_state({output_box: startup_error}, running=False)
                     return
 
                 baseline_label = "Baseline"
@@ -636,8 +701,8 @@ class Runner:
 
     def monitor(self):
         r"""Monitorgit the training progress and logs."""
-        self.aborted = False
-        self.running = True
+        with self._state_lock:
+            self.running = True
 
         get = lambda elem_id: self.running_data[self.manager.get_elem_by_id(elem_id)]
         lang, model_name, finetuning_type = get("top.lang"), get("top.model_name"), get("top.finetuning_type")
@@ -670,7 +735,9 @@ class Runner:
                 if output_box_compare_left is not None and output_box_compare_right is not None:
                     abort_dict[output_box_compare_left] = gr.update(value="")
                     abort_dict[output_box_compare_right] = gr.update(value="")
-                yield abort_dict
+                if self.do_train:
+                    self._set_train_button_state(abort_dict, running=True)
+                yield self._clear_train_plots(abort_dict) if self.do_train else abort_dict
             else:
                 if self.compare_mode:
                     running_logs, running_progress, running_info = get_compare_trainer_info(
@@ -737,7 +804,11 @@ class Runner:
             if label not in return_codes:
                 return_codes[label] = trainer.returncode or 0
 
-        if self.aborted or all(return_code == 0 for return_code in return_codes.values()):
+        was_aborted = self.aborted
+        if was_aborted:
+            finish_info = ALERTS["info_aborted"][lang]
+            finish_log = ALERTS["info_aborted"][lang] + "\n\n" + running_log
+        elif all(return_code == 0 for return_code in return_codes.values()):
             finish_info = ALERTS["info_finished"][lang]
             if self.do_train:
                 finish_log = ALERTS["info_finished"][lang] + "\n\n" + running_log
@@ -767,6 +838,10 @@ class Runner:
             else:
                 return_dict[output_row_single] = gr.update(visible=True)
                 return_dict[output_row_compare] = gr.update(visible=False)
+        if was_aborted and self.do_train:
+            self._clear_train_plots(return_dict)
+        if self.do_train:
+            self._set_train_button_state(return_dict, running=False)
         yield return_dict
 
     def save_args(self, data):
