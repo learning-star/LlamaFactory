@@ -290,13 +290,36 @@ def list_output_dirs(model_name: str | None, finetuning_type: str, current_time:
     Inputs: top.model_name, top.finetuning_type, train.current_time
     Outputs: train.output_dir
     """
+    def has_checkpoint(output_dir: os.PathLike) -> bool:
+        if get_last_checkpoint(output_dir) is not None:
+            return True
+
+        try:
+            run_folders = [
+                os.path.join(output_dir, folder)
+                for folder in os.listdir(output_dir)
+                if folder.startswith("run_") and os.path.isdir(os.path.join(output_dir, folder))
+            ]
+        except OSError:
+            return False
+
+        for run_folder in run_folders:
+            if get_last_checkpoint(run_folder) is not None:
+                return True
+
+            for run_name in ("baseline", "ecophase"):
+                if get_last_checkpoint(os.path.join(run_folder, run_name)) is not None:
+                    return True
+
+        return False
+
     output_dirs = [f"train_{current_time}"]
     if model_name:
         save_dir = get_save_dir(model_name, finetuning_type)
         if save_dir and os.path.isdir(save_dir):
             for folder in os.listdir(save_dir):
                 output_dir = os.path.join(save_dir, folder)
-                if os.path.isdir(output_dir) and get_last_checkpoint(output_dir) is not None:
+                if os.path.isdir(output_dir) and has_checkpoint(output_dir):
                     output_dirs.append(folder)
 
     return gr.Dropdown(choices=output_dirs)

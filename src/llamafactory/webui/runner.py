@@ -41,6 +41,7 @@ from .common import (
     calculate_pixels,
     gen_cmd,
     get_save_dir,
+    get_time,
     load_args,
     load_config,
     load_eval_results,
@@ -278,6 +279,17 @@ class Runner:
                 True,
             ),
         }
+
+    def _build_run_output_path(self, output_path: str) -> str:
+        r"""Create a unique run directory under the user-selected output path."""
+        run_slug = f"run_{get_time()}"
+        candidate = os.path.join(output_path, run_slug)
+        suffix = 1
+        while os.path.exists(candidate):
+            suffix += 1
+            candidate = os.path.join(output_path, f"{run_slug}_{suffix}")
+
+        return candidate
 
     def _parse_train_args(self, data: dict["Component", Any]) -> dict[str, Any]:
         r"""Build and validate the training arguments."""
@@ -561,14 +573,19 @@ class Runner:
                 self._apply_user_output_root(args, plugin_username)
                 gr.Info(ALERTS["info_ecophase_dual_start"][data[self.manager.get_elem_by_id("top.lang")]])
 
+            output_path = self._build_run_output_path(args["output_dir"]) if do_train else args["output_dir"]
             os.makedirs(args["output_dir"], exist_ok=True)
-            save_args(os.path.join(args["output_dir"], LLAMABOARD_CONFIG), self._build_config_dict(data))
+            os.makedirs(output_path, exist_ok=True)
+            config_dict = self._build_config_dict(data)
+            save_args(os.path.join(args["output_dir"], LLAMABOARD_CONFIG), config_dict)
+            if output_path != args["output_dir"]:
+                save_args(os.path.join(output_path, LLAMABOARD_CONFIG), config_dict)
 
             self.compare_mode = plugin_enabled
             self.trainers = {}
             self.run_output_paths = {}
 
-            run_specs = self._build_training_runs(args, args["output_dir"], plugin_enabled)
+            run_specs = self._build_training_runs(args, output_path, plugin_enabled)
             for label, (_, run_output_dir, _) in run_specs.items():
                 os.makedirs(run_output_dir, exist_ok=True)
                 self.run_output_paths[label] = run_output_dir
