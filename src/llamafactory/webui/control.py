@@ -31,6 +31,7 @@ from ..extras.packages import is_gradio_available, is_matplotlib_available
 from ..extras.ploting import gen_loss_compare_plot, gen_loss_plot, gen_metric_compare_plot, gen_metric_plot
 from ..model import QuantizationMethod
 from .common import DEFAULT_CONFIG_DIR, DEFAULT_DATA_DIR, get_model_path, get_save_dir, get_template, load_dataset_info
+from .ecophase import ECOPHASE_SUPPORTED_DATASETS, get_ecophase_training_preset
 from .locales import ALERTS
 
 
@@ -81,7 +82,41 @@ def change_stage(training_stage: str = list(TRAINING_STAGES.keys())[0]) -> tuple
     Inputs: train.training_stage
     Outputs: train.dataset, train.packing
     """
-    return [], TRAINING_STAGES[training_stage] == "pt"
+    stage = TRAINING_STAGES[training_stage]
+    return ([] if stage in STAGES_USE_PAIR_DATA else ECOPHASE_SUPPORTED_DATASETS), stage == "pt"
+
+
+def apply_training_preset(preset_name: str) -> tuple[Any, ...]:
+    r"""Apply one of the EcoPhase one-click training presets.
+
+    Inputs: train.preset_selector
+    Outputs: top/model fields and train/core training fields.
+    """
+    preset = get_ecophase_training_preset(preset_name)
+    return (
+        preset["model_name"],
+        preset["model_path"],
+        preset["finetuning_type"],
+        [],
+        "none",
+        "bnb",
+        preset["template"],
+        "none",
+        "auto",
+        preset["training_stage"],
+        preset["dataset_dir"],
+        preset["dataset"],
+        preset["learning_rate"],
+        preset["num_train_epochs"],
+        preset["max_grad_norm"],
+        preset["cutoff_len"],
+        preset["batch_size"],
+        preset["gradient_accumulation_steps"],
+        preset["val_size"],
+        preset["lr_scheduler_type"],
+        preset["compute_type"],
+        preset["packing"],
+    )
 
 
 def get_model_info(model_name: str) -> tuple[str, str]:
@@ -280,7 +315,11 @@ def list_datasets(dataset_dir: str = None, training_stage: str = list(TRAINING_S
     """
     dataset_info = load_dataset_info(dataset_dir if dataset_dir is not None else DEFAULT_DATA_DIR)
     ranking = TRAINING_STAGES[training_stage] in STAGES_USE_PAIR_DATA
-    datasets = [k for k, v in dataset_info.items() if v.get("ranking", False) == ranking]
+    datasets = [
+        dataset
+        for dataset in ECOPHASE_SUPPORTED_DATASETS
+        if dataset in dataset_info and dataset_info[dataset].get("ranking", False) == ranking
+    ]
     return gr.Dropdown(choices=datasets)
 
 
@@ -290,13 +329,36 @@ def list_output_dirs(model_name: str | None, finetuning_type: str, current_time:
     Inputs: top.model_name, top.finetuning_type, train.current_time
     Outputs: train.output_dir
     """
+    def has_checkpoint(output_dir: os.PathLike) -> bool:
+        if get_last_checkpoint(output_dir) is not None:
+            return True
+
+        try:
+            run_folders = [
+                os.path.join(output_dir, folder)
+                for folder in os.listdir(output_dir)
+                if folder.startswith("run_") and os.path.isdir(os.path.join(output_dir, folder))
+            ]
+        except OSError:
+            return False
+
+        for run_folder in run_folders:
+            if get_last_checkpoint(run_folder) is not None:
+                return True
+
+            for run_name in ("baseline", "ecophase"):
+                if get_last_checkpoint(os.path.join(run_folder, run_name)) is not None:
+                    return True
+
+        return False
+
     output_dirs = [f"train_{current_time}"]
     if model_name:
         save_dir = get_save_dir(model_name, finetuning_type)
         if save_dir and os.path.isdir(save_dir):
             for folder in os.listdir(save_dir):
                 output_dir = os.path.join(save_dir, folder)
-                if os.path.isdir(output_dir) and get_last_checkpoint(output_dir) is not None:
+                if os.path.isdir(output_dir) and has_checkpoint(output_dir):
                     output_dirs.append(folder)
 
     return gr.Dropdown(choices=output_dirs)

@@ -32,6 +32,7 @@ from ..extras.constants import (
     DownloadSource,
 )
 from ..extras.misc import use_modelscope, use_openmind
+from .ecophase import ECOPHASE_MODEL_TEMPLATES, ECOPHASE_SUPPORTED_MODELS
 
 
 logger = logging.get_logger(__name__)
@@ -119,7 +120,9 @@ def save_config(
 def get_model_path(model_name: str) -> str:
     r"""Get the model path according to the model name."""
     user_config = load_config()
-    path_dict: dict[DownloadSource, str] = SUPPORTED_MODELS.get(model_name, defaultdict(str))
+    path_dict: dict[DownloadSource, str] = ECOPHASE_SUPPORTED_MODELS.get(
+        model_name, SUPPORTED_MODELS.get(model_name, defaultdict(str))
+    )
     model_path = user_config["path_dict"].get(model_name, "") or path_dict.get(DownloadSource.DEFAULT, "")
     if (
         use_modelscope()
@@ -140,7 +143,7 @@ def get_model_path(model_name: str) -> str:
 
 def get_template(model_name: str) -> str:
     r"""Get the template name if the model is a chat/distill/instruct model."""
-    return DEFAULT_TEMPLATE.get(model_name, "default")
+    return ECOPHASE_MODEL_TEMPLATES.get(model_name, DEFAULT_TEMPLATE.get(model_name, "default"))
 
 
 def get_time() -> str:

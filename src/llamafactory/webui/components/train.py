@@ -20,7 +20,8 @@ from ...extras.constants import TRAINING_STAGES
 from ...extras.misc import get_device_count
 from ...extras.packages import is_gradio_available
 from ..common import DEFAULT_DATA_DIR
-from ..control import change_stage, list_checkpoints, list_config_paths, list_datasets, list_output_dirs
+from ..control import apply_training_preset, change_stage, list_checkpoints, list_config_paths, list_datasets, list_output_dirs
+from ..ecophase import ECOPHASE_TRAINING_PRESETS
 from .data import create_preview_box
 
 
@@ -47,6 +48,13 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
 
     input_elems.update({training_stage, dataset_dir, dataset})
     elem_dict.update(dict(training_stage=training_stage, dataset_dir=dataset_dir, dataset=dataset, **preview_elems))
+
+    with gr.Row():
+        preset_names = list(ECOPHASE_TRAINING_PRESETS.keys())
+        preset_selector = gr.Dropdown(choices=preset_names, value=preset_names[0], scale=4)
+        apply_preset_btn = gr.Button(variant="secondary", scale=1)
+
+    elem_dict.update(dict(preset_selector=preset_selector, apply_preset_btn=apply_preset_btn))
 
     with gr.Row():
         learning_rate = gr.Textbox(value="5e-5")
@@ -490,7 +498,44 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
 
     lang = engine.manager.get_elem_by_id("top.lang")
     model_name: gr.Dropdown = engine.manager.get_elem_by_id("top.model_name")
+    model_path: gr.Textbox = engine.manager.get_elem_by_id("top.model_path")
     finetuning_type: gr.Dropdown = engine.manager.get_elem_by_id("top.finetuning_type")
+    checkpoint_path: gr.Dropdown = engine.manager.get_elem_by_id("top.checkpoint_path")
+    quantization_bit: gr.Dropdown = engine.manager.get_elem_by_id("top.quantization_bit")
+    quantization_method: gr.Dropdown = engine.manager.get_elem_by_id("top.quantization_method")
+    template: gr.Dropdown = engine.manager.get_elem_by_id("top.template")
+    rope_scaling: gr.Dropdown = engine.manager.get_elem_by_id("top.rope_scaling")
+    booster: gr.Dropdown = engine.manager.get_elem_by_id("top.booster")
+
+    apply_preset_btn.click(
+        apply_training_preset,
+        [preset_selector],
+        [
+            model_name,
+            model_path,
+            finetuning_type,
+            checkpoint_path,
+            quantization_bit,
+            quantization_method,
+            template,
+            rope_scaling,
+            booster,
+            training_stage,
+            dataset_dir,
+            dataset,
+            learning_rate,
+            num_train_epochs,
+            max_grad_norm,
+            cutoff_len,
+            batch_size,
+            gradient_accumulation_steps,
+            val_size,
+            lr_scheduler_type,
+            compute_type,
+            packing,
+        ],
+        queue=False,
+    )
 
     arg_save_btn.click(engine.runner.save_args, input_elems, output_elems + [config_path], concurrency_limit=None)
     arg_load_btn.click(
