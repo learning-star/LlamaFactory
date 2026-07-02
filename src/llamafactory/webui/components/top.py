@@ -20,6 +20,7 @@ from ...extras.misc import use_modelscope, use_openmind
 from ...extras.packages import is_gradio_available
 from ..common import save_config
 from ..control import can_quantize, can_quantize_to, check_template, get_model_info, list_checkpoints, switch_hub
+from ..ecophase import ECOPHASE_SUPPORTED_MODELS
 
 
 if is_gradio_available():
@@ -33,8 +34,8 @@ if TYPE_CHECKING:
 def create_top() -> dict[str, "Component"]:
     with gr.Row():
         lang = gr.Dropdown(choices=["en", "ru", "zh", "ko", "ja"], value=None, scale=1)
-        available_models = list(SUPPORTED_MODELS.keys()) + ["Custom"]
-        model_name = gr.Dropdown(choices=available_models, value=None, scale=2)
+        available_models = list(ECOPHASE_SUPPORTED_MODELS.keys())
+        model_name = gr.Dropdown(choices=available_models, value=available_models[0], scale=2, allow_custom_value=False)
         model_path = gr.Textbox(scale=2)
         default_hub = "modelscope" if use_modelscope() else "openmind" if use_openmind() else "huggingface"
         hub_name = gr.Dropdown(choices=["huggingface", "modelscope", "openmind"], value=default_hub, scale=2)
