@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 from .chatter import WebChatModel
 from .common import create_ds_config, get_time, load_config
+from .ecophase import ECOPHASE_SUPPORTED_MODELS
 from .locales import LOCALES
 from .manager import Manager
 from .runner import Runner
@@ -62,8 +63,9 @@ class Engine:
             init_dict["eval.output_dir"] = {"value": f"eval_{current_time}"}
             init_dict["infer.mm_box"] = {"visible": False}
 
-            if user_config.get("last_model", None):
-                init_dict["top.model_name"] = {"value": user_config["last_model"]}
+            last_model = user_config.get("last_model")
+            if last_model in ECOPHASE_SUPPORTED_MODELS:
+                init_dict["top.model_name"] = {"value": last_model}
 
         yield self._update_component(init_dict)
 

@@ -127,6 +127,11 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
         if training_args.fp8 and hasattr(self, "accelerator"):  # verify FP8 status after trainer initialization
             verify_fp8_status(self.accelerator, training_args)
 
+        from llamafactory.EcoPhase.EcoMonitor import EcoMonitor
+
+        ecophase_plugin_enabled = os.getenv("ECOPHASE_AI_PLUGIN", "").strip().lower() in {"1", "true", "yes", "on"}
+        EcoMonitor.attach(self, enabled=ecophase_plugin_enabled)
+        # EcoMonitor.attach(self, enabled=True)
     @override
     def create_optimizer(self, *args, **kwargs) -> "torch.optim.Optimizer":
         if self.optimizer is None:

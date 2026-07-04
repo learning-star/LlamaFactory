@@ -2048,16 +2048,16 @@ LOCALES = {
             "value": "### EcoTrain Plugin",
         },
         "ru": {
-            "value": "### Плагин EcoPhase.AI",
+            "value": "### EcoTrain Plugin",
         },
         "zh": {
             "value": "### EcoTrain Plugin",
         },
         "ko": {
-            "value": "### EcoPhase.AI 플러그인",
+            "value": "### EcoTrain Plugin",
         },
         "ja": {
-            "value": "### EcoPhase.AI プラグイン",
+            "value": "### EcoTrain Plugin",
         },
     },
     "ecophase_notice": {
@@ -2084,7 +2084,7 @@ LOCALES = {
         },
         "ru": {
             "label": "Имя пользователя",
-            "info": "Имя учетной записи для плагина EcoPhase.AI.",
+            "info": "Имя учетной записи для EcoTrain Plugin.",
         },
         "zh": {
             "label": "用户名",
@@ -2092,11 +2092,11 @@ LOCALES = {
         },
         "ko": {
             "label": "사용자 이름",
-            "info": "EcoPhase.AI 플러그인에 사용할 계정 이름.",
+            "info": "EcoTrain Plugin에 사용할 계정 이름.",
         },
         "ja": {
             "label": "ユーザー名",
-            "info": "EcoPhase.AI プラグインで使用するアカウント名。",
+            "info": "EcoTrain Pluginで使用するアカウント名。",
         },
     },
     "ecophase_api_key": {
@@ -2106,7 +2106,7 @@ LOCALES = {
         },
         "ru": {
             "label": "API ключ",
-            "info": "API ключ для плагина EcoPhase.AI.",
+            "info": "API ключ для EcoTrain Plugin.",
         },
         "zh": {
             "label": "API Key",
@@ -2114,11 +2114,11 @@ LOCALES = {
         },
         "ko": {
             "label": "API 키",
-            "info": "EcoPhase.AI 플러그인에 사용할 API 키.",
+            "info": "EcoTrain Plugin에 사용할 API 키.",
         },
         "ja": {
             "label": "API キー",
-            "info": "EcoPhase.AI プラグインで使用する API キー。",
+            "info": "EcoTrain Pluginで使用する API キー。",
         },
     },
     "swanlab_project": {

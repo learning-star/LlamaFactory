@@ -51,8 +51,8 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
 
     with gr.Row():
         preset_names = list(ECOPHASE_TRAINING_PRESETS.keys())
-        preset_selector = gr.Dropdown(choices=preset_names, value=preset_names[0], scale=4)
-        apply_preset_btn = gr.Button(variant="secondary", scale=1)
+        preset_selector = gr.Dropdown(label="训练预设", choices=preset_names, value=preset_names[0], scale=4)
+        apply_preset_btn = gr.Button(value="一键设置参数", variant="secondary", scale=1)
 
     elem_dict.update(dict(preset_selector=preset_selector, apply_preset_btn=apply_preset_btn))
 

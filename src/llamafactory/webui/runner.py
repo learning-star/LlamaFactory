@@ -669,8 +669,23 @@ class Runner:
                 startup_error = self._wait_for_plugin_startup(self.trainers[plugin_label], plugin_output_dir)
                 if startup_error:
                     lang = data[self.manager.get_elem_by_id("top.lang")]
+                    startup_output = {output_box: startup_error}
+                    running_log, running_progress, running_info = get_trainer_info(lang, plugin_output_dir, True)
+                    if running_log:
+                        startup_output[output_box] = startup_error + "\n\n" + running_log
+
+                    startup_output[self.manager.get_elem_by_id("train.progress_bar")] = running_progress
+                    for elem_id, info_key in (
+                        ("train.loss_viewer", "loss_viewer"),
+                        ("train.eval_loss_viewer", "eval_loss_viewer"),
+                        ("train.eval_accuracy_viewer", "eval_accuracy_viewer"),
+                        ("train.swanlab_link", "swanlab_link"),
+                    ):
+                        if info_key in running_info:
+                            startup_output[self.manager.get_elem_by_id(elem_id)] = running_info[info_key]
+
                     self._finalize(lang, ALERTS["err_failed"][lang])
-                    yield self._set_train_button_state({output_box: startup_error}, running=False)
+                    yield self._set_train_button_state(startup_output, running=False)
                     return
 
                 baseline_label = "Baseline"

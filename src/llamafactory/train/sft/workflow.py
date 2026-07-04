@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import TYPE_CHECKING, Optional
 
 from ...data import SFTDataCollatorWith4DAttentionMask, get_dataset, get_template_and_fix_tokenizer
@@ -36,6 +37,11 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
+
+
+def _should_save_training_artifacts() -> bool:
+    value = os.getenv("ECOPHASE_SAVE_CHECKPOINTS", "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
 
 
 def run_sft(
@@ -119,7 +125,8 @@ def run_sft(
     # Training
     if training_args.do_train:
         train_result = trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
-        trainer.save_model()
+        if _should_save_training_artifacts():
+            trainer.save_model()
         if finetuning_args.include_effective_tokens_per_second:
             train_result.metrics["effective_tokens_per_sec"] = calculate_tps(
                 dataset_module["train_dataset"], train_result.metrics, stage="sft"
@@ -127,7 +134,8 @@ def run_sft(
 
         trainer.log_metrics("train", train_result.metrics)
         trainer.save_metrics("train", train_result.metrics)
-        trainer.save_state()
+        if _should_save_training_artifacts():
+            trainer.save_state()
         if trainer.is_world_process_zero() and finetuning_args.plot_loss:
             keys = ["loss"]
             if isinstance(dataset_module.get("eval_dataset"), dict):

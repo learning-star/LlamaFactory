@@ -21,24 +21,24 @@ from ..extras.constants import DownloadSource
 ECOPHASE_SUPPORTED_MODELS = OrderedDict(
     {
         "Qwen3-1.7B": {
-            DownloadSource.DEFAULT: "Qwen/Qwen3-1.7B",
-            DownloadSource.MODELSCOPE: "Qwen/Qwen3-1.7B",
+            DownloadSource.DEFAULT: "/root/autodl-tmp/model/Qwen/Qwen3-1.7B",
+            DownloadSource.MODELSCOPE: "/root/autodl-tmp/model/Qwen/Qwen3-1.7B",
         }
     }
 )
 ECOPHASE_MODEL_TEMPLATES = {"Qwen3-1.7B": "qwen3"}
-ECOPHASE_SUPPORTED_DATASETS = ["ScienceQA", "alpaca_zh_demo", "alpaca_en_demo"]
+ECOPHASE_SUPPORTED_DATASETS = ["scienceqa_train", "alpaca_zh_demo", "alpaca_en_demo"]
 
 ECOPHASE_TRAINING_PRESETS: "OrderedDict[str, dict[str, Any]]" = OrderedDict(
     {
         "ScienceQA full 微调（推荐）": {
             "model_name": "Qwen3-1.7B",
-            "model_path": "Qwen/Qwen3-1.7B",
+            "model_path": "/root/autodl-tmp/model/Qwen/Qwen3-1.7B",
             "finetuning_type": "full",
             "template": "qwen3",
             "training_stage": "Supervised Fine-Tuning",
             "dataset_dir": "data",
-            "dataset": ["ScienceQA"],
+            "dataset": ["scienceqa_train"],
             "cutoff_len": 4096,
             "learning_rate": "5e-5",
             "num_train_epochs": "5",
@@ -52,7 +52,7 @@ ECOPHASE_TRAINING_PRESETS: "OrderedDict[str, dict[str, Any]]" = OrderedDict(
         },
         "中文指令 LoRA 快速验证": {
             "model_name": "Qwen3-1.7B",
-            "model_path": "Qwen/Qwen3-1.7B",
+            "model_path": "/root/autodl-tmp/model/Qwen/Qwen3-1.7B",
             "finetuning_type": "lora",
             "template": "qwen3",
             "training_stage": "Supervised Fine-Tuning",
@@ -71,7 +71,7 @@ ECOPHASE_TRAINING_PRESETS: "OrderedDict[str, dict[str, Any]]" = OrderedDict(
         },
         "英文指令 LoRA 快速验证": {
             "model_name": "Qwen3-1.7B",
-            "model_path": "Qwen/Qwen3-1.7B",
+            "model_path": "/root/autodl-tmp/model/Qwen/Qwen3-1.7B",
             "finetuning_type": "lora",
             "template": "qwen3",
             "training_stage": "Supervised Fine-Tuning",

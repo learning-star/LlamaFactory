@@ -61,8 +61,7 @@ def gen_metric_plot(
             metrics.append(log[metric_key])
 
     if len(metrics) != 0:
-        ax.plot(steps, metrics, color="#1f77b4", alpha=0.4, label="original")
-        ax.plot(steps, smooth(metrics), color="#1f77b4", label="smoothed")
+        ax.plot(steps, metrics, color="#1f77b4", label=ylabel or metric_key)
         ax.legend()
 
     ax.set_xlabel("step")
@@ -111,27 +110,60 @@ def gen_loss_compare_plot(trainer_logs: dict[str, list[dict[str, Any]]]) -> "mat
     return gen_metric_compare_plot(trainer_logs, "loss", "loss")
 
 
+def _load_plot_log_history(save_dictionary: str) -> list[dict[str, Any]]:
+    r"""Load metrics from Trainer state or LlamaBoard log stream."""
+    trainer_state_path = os.path.join(save_dictionary, TRAINER_STATE_NAME)
+    if os.path.isfile(trainer_state_path):
+        with open(trainer_state_path, encoding="utf-8") as f:
+            return json.load(f).get("log_history", [])
+
+    trainer_log_path = os.path.join(save_dictionary, "trainer_log.jsonl")
+    if not os.path.isfile(trainer_log_path):
+        logger.warning_rank0(f"No trainer state or trainer log found in {save_dictionary}.")
+        return []
+
+    log_history: list[dict[str, Any]] = []
+    with open(trainer_log_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+
+            try:
+                log = json.loads(line)
+            except json.JSONDecodeError:
+                logger.warning_rank0(f"Skipping malformed trainer log line in {trainer_log_path}.")
+                continue
+
+            if "step" not in log and "current_steps" in log:
+                log["step"] = log["current_steps"]
+
+            log_history.append(log)
+
+    return log_history
+
+
 def plot_loss(save_dictionary: str, keys: list[str] = ["loss"]) -> None:
     r"""Plot loss curves and saves the image."""
     plt.switch_backend("agg")
-    with open(os.path.join(save_dictionary, TRAINER_STATE_NAME), encoding="utf-8") as f:
-        data = json.load(f)
+    log_history = _load_plot_log_history(save_dictionary)
+    if len(log_history) == 0:
+        return
 
     for key in keys:
         steps, metrics = [], []
-        for i in range(len(data["log_history"])):
-            if key in data["log_history"][i]:
-                steps.append(data["log_history"][i]["step"])
-                metrics.append(data["log_history"][i][key])
+        for log in log_history:
+            if key in log and "step" in log:
+                steps.append(log["step"])
+                metrics.append(log[key])
 
         if len(metrics) == 0:
             logger.warning_rank0(f"No metric {key} to plot.")
             continue
 
         plt.figure()
-        plt.plot(steps, metrics, color="#1f77b4", alpha=0.4, label="original")
-        plt.plot(steps, smooth(metrics), color="#1f77b4", label="smoothed")
-        plt.title(f"training {key} of {save_dictionary}")
+        plt.plot(steps, metrics, color="#1f77b4", label=key)
+        plt.title(key)
         plt.xlabel("step")
         plt.ylabel(key)
         plt.legend()
