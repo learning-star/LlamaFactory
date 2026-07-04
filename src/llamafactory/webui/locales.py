@@ -2121,6 +2121,23 @@ LOCALES = {
             "info": "EcoTrain Pluginで使用する API キー。",
         },
     },
+    "ecophase_credentials_hint": {
+        "en": {
+            "value": "Please provide EcoPhase.AI username and API key.",
+        },
+        "ru": {
+            "value": "Укажите имя пользователя EcoPhase.AI и ключ API.",
+        },
+        "zh": {
+            "value": "请填写 EcoPhase.AI 用户名和 API Key。",
+        },
+        "ko": {
+            "value": "EcoPhase.AI 사용자 이름과 API 키를 입력하십시오.",
+        },
+        "ja": {
+            "value": "EcoPhase.AI のユーザー名と API Key を入力してください。",
+        },
+    },
     "swanlab_project": {
         "en": {
             "label": "SwanLab project",

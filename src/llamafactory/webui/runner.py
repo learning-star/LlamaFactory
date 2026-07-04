@@ -128,7 +128,9 @@ class Runner:
             return ALERTS["err_demo"][lang]
 
         if do_train:
-            if not from_preview and (not get("train.ecophase_username") or not get("train.ecophase_api_key")):
+            ecophase_username = str(get("train.ecophase_username") or "").strip()
+            ecophase_api_key = str(get("train.ecophase_api_key") or "").strip()
+            if not from_preview and (not ecophase_username or not ecophase_api_key):
                 return ALERTS["err_no_ecophase_credentials"][lang]
 
             if not get("train.output_dir"):

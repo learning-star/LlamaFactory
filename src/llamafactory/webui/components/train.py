@@ -22,6 +22,7 @@ from ...extras.packages import is_gradio_available
 from ..common import DEFAULT_DATA_DIR
 from ..control import apply_training_preset, change_stage, list_checkpoints, list_config_paths, list_datasets, list_output_dirs
 from ..ecophase import ECOPHASE_TRAINING_PRESETS
+from ..locales import ALERTS
 from .data import create_preview_box
 
 
@@ -33,6 +34,16 @@ if TYPE_CHECKING:
     from gradio.components import Component
 
     from ..engine import Engine
+
+
+def can_start_ecophase_training(
+    lang: str, username: str | None, api_key: str | None
+) -> tuple["gr.Button", "gr.Markdown"]:
+    r"""Enable training only after EcoPhase credentials are provided."""
+    has_credentials = bool((username or "").strip() and (api_key or "").strip())
+    return gr.Button(interactive=has_credentials), gr.Markdown(
+        value=ALERTS["err_no_ecophase_credentials"][lang], visible=not has_credentials
+    )
 
 
 def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
@@ -398,6 +409,7 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
         with gr.Row():
             ecophase_username = gr.Textbox()
             ecophase_api_key = gr.Textbox(type="password")
+        ecophase_credentials_hint = gr.Markdown(value=ALERTS["err_no_ecophase_credentials"]["en"], visible=True)
 
     input_elems.update({ecophase_username, ecophase_api_key})
     elem_dict.update(
@@ -407,6 +419,7 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
             ecophase_notice=ecophase_notice,
             ecophase_username=ecophase_username,
             ecophase_api_key=ecophase_api_key,
+            ecophase_credentials_hint=ecophase_credentials_hint,
         )
     )
 
@@ -414,7 +427,7 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
         cmd_preview_btn = gr.Button()
         arg_save_btn = gr.Button(visible=False)
         arg_load_btn = gr.Button(visible=False)
-        start_btn = gr.Button(variant="primary")
+        start_btn = gr.Button(variant="primary", interactive=False)
         stop_btn = gr.Button(variant="stop")
 
     with gr.Row():
@@ -506,6 +519,14 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
     template: gr.Dropdown = engine.manager.get_elem_by_id("top.template")
     rope_scaling: gr.Dropdown = engine.manager.get_elem_by_id("top.rope_scaling")
     booster: gr.Dropdown = engine.manager.get_elem_by_id("top.booster")
+
+    for elem in (ecophase_username, ecophase_api_key):
+        elem.input(
+            can_start_ecophase_training,
+            [lang, ecophase_username, ecophase_api_key],
+            [start_btn, ecophase_credentials_hint],
+            queue=False,
+        )
 
     apply_preset_btn.click(
         apply_training_preset,
