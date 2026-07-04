@@ -327,7 +327,7 @@ class Runner:
 
     def _build_run_output_path(self, output_path: str) -> str:
         r"""Create a unique run directory under the user-selected output path."""
-        run_slug = f"run_{get_time()}"
+        run_slug = f"run_{get_time()}_{int(time.time() * 1000) % 1000:03d}_{os.getpid()}"
         candidate = os.path.join(output_path, run_slug)
         suffix = 1
         while os.path.exists(candidate):
@@ -655,7 +655,8 @@ class Runner:
                 self.run_output_paths[label] = run_output_dir
 
             if do_train:
-                self._clear_training_monitor_artifacts(list(self.run_output_paths.values()))
+                monitor_dirs = list(dict.fromkeys([args["output_dir"], output_path, *self.run_output_paths.values()]))
+                self._clear_training_monitor_artifacts(monitor_dirs)
 
             if plugin_enabled:
                 plugin_label = "EcoTrain Plugin"
