@@ -176,6 +176,14 @@ def _has_metric(trainer_log: list[dict[str, Any]], metric_key: str) -> bool:
     return any(log.get(metric_key, None) is not None for log in trainer_log)
 
 
+def _get_metric_plot_label(label: str) -> str:
+    r"""Return the display label passed into metric comparison plots."""
+    if label == "EcoPhase.AI Plugin":
+        return "EcoTrain API"
+
+    return label
+
+
 def get_trainer_info(lang: str, output_path: os.PathLike, do_train: bool) -> tuple[str, "gr.Slider", dict[str, Any]]:
     r"""Get training information for monitor.
 
@@ -242,7 +250,7 @@ def get_compare_trainer_info(
             progress_values.append(latest_log["percentage"])
 
         if len(trainer_log) != 0:
-            trainer_logs[label] = trainer_log
+            trainer_logs[_get_metric_plot_label(label)] = trainer_log
 
         if swanlab_link is not None:
             swanlab_links.append(f"### {label}\n{ALERTS['info_swanlab_link'][lang] + swanlab_link}")
