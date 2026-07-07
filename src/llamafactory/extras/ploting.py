@@ -72,7 +72,7 @@ def gen_metric_plot(
 def gen_metric_compare_plot(
     trainer_logs: dict[str, list[dict[str, Any]]], metric_key: str, ylabel: str | None = None
 ) -> "matplotlib.figure.Figure":
-    r"""Plot multiple smoothed metric curves in LlamaBoard."""
+    r"""Plot multiple raw metric curves in LlamaBoard."""
     plt.close("all")
     plt.switch_backend("agg")
     fig = plt.figure()
@@ -90,7 +90,7 @@ def gen_metric_compare_plot(
             continue
 
         color = color_cycle[idx % len(color_cycle)] if color_cycle else "#1f77b4"
-        ax.plot(steps, smooth(metrics), color=color, label=label)
+        ax.plot(steps, metrics, color=color, label=label)
 
     if ax.lines:
         ax.legend()
@@ -106,7 +106,7 @@ def gen_loss_plot(trainer_log: list[dict[str, Any]]) -> "matplotlib.figure.Figur
 
 
 def gen_loss_compare_plot(trainer_logs: dict[str, list[dict[str, Any]]]) -> "matplotlib.figure.Figure":
-    r"""Plot multiple smoothed loss curves in LlamaBoard."""
+    r"""Plot multiple raw loss curves in LlamaBoard."""
     return gen_metric_compare_plot(trainer_logs, "loss", "loss")
 
 
