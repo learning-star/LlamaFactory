@@ -500,7 +500,7 @@ class Runner:
                 args["eval_steps"] = int(os.getenv("ECOPHASE_EVAL_STEPS", "20"))
                 args["per_device_eval_batch_size"] = int(os.getenv("ECOPHASE_EVAL_BATCH_SIZE", "16"))
                 args["compute_accuracy"] = True
-                args["eval_on_start"] = True
+                args["eval_on_start"] = False
 
         # ds config
         if get("train.ds_stage") != "none":
