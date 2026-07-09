@@ -178,7 +178,7 @@ def _has_metric(trainer_log: list[dict[str, Any]], metric_key: str) -> bool:
 
 def _get_metric_plot_label(label: str) -> str:
     r"""Return the display label passed into metric comparison plots."""
-    if label == "EcoPhase.AI Plugin":
+    if label in {"EcoPhase.AI Plugin", "EcoTrain Plugin"}:
         return "EcoTrain API"
 
     return label

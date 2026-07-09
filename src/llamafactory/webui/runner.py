@@ -240,7 +240,7 @@ class Runner:
         if "API is disabled" in running_log:
             return "disabled"
 
-        if "EcoMonitor initialized" in running_log and "API is enabled" in running_log:
+        if "API is enabled" in running_log:
             return "enabled"
 
         return None
