@@ -15,7 +15,7 @@
 from typing import TYPE_CHECKING, Any
 
 from .chatter import WebChatModel
-from .common import create_ds_config, get_time, load_config
+from .common import create_ds_config, get_model_path, get_time, load_config
 from .ecophase import ECOPHASE_SUPPORTED_MODELS
 from .locales import LOCALES
 from .manager import Manager
@@ -66,6 +66,7 @@ class Engine:
             last_model = user_config.get("last_model")
             if last_model in ECOPHASE_SUPPORTED_MODELS:
                 init_dict["top.model_name"] = {"value": last_model}
+                init_dict["top.model_path"] = {"value": get_model_path(last_model)}
 
         yield self._update_component(init_dict)
 
