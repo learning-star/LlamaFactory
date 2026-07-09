@@ -19,7 +19,7 @@ import sys
 import time
 from collections.abc import Generator
 from copy import deepcopy
-from subprocess import PIPE, Popen
+from subprocess import Popen
 from threading import Lock
 from typing import TYPE_CHECKING, Any
 
@@ -215,7 +215,7 @@ class Runner:
                 [sys.executable, "-m", "llamafactory.cli", "train", save_cmd(args)],
                 env=env,
                 stdout=stdout_log,
-                stderr=PIPE,
+                stderr=stdout_log,
                 text=True,
             )
         finally:
@@ -253,6 +253,7 @@ class Runner:
             return_code = trainer.poll()
             if return_code is not None:
                 _, stderr = trainer.communicate()
+                stderr = stderr or ""
                 return f"EcoTrain Plugin failed to start. Exit code: {return_code}\n\n```\n{stderr}\n```"
 
             if self.aborted:
@@ -264,6 +265,7 @@ class Runner:
             if plugin_status == "disabled":
                 abort_process(trainer.pid)
                 _, stderr = trainer.communicate()
+                stderr = stderr or ""
                 running_log = self._read_running_log(output_dir)
                 return (
                     "EcoTrain Plugin reported API disabled. Baseline was not started.\n\n"
@@ -274,6 +276,7 @@ class Runner:
 
         abort_process(trainer.pid)
         _, stderr = trainer.communicate()
+        stderr = stderr or ""
         return (
             "EcoTrain Plugin startup timed out before API enabled status was confirmed. "
             "Baseline was not started.\n\n"
@@ -835,7 +838,7 @@ class Runner:
         stderrs: dict[str, str] = {}
         for label, trainer in self.trainers.items():
             _, stderr = trainer.communicate()
-            stderrs[label] = stderr
+            stderrs[label] = stderr or ""
             if label not in return_codes:
                 return_codes[label] = trainer.returncode or 0
 
