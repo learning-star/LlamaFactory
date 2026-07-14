@@ -254,7 +254,9 @@ class Runner:
             if return_code is not None:
                 _, stderr = trainer.communicate()
                 stderr = stderr or ""
-                return f"EcoTrain Plugin failed to start. Exit code: {return_code}\n\n```\n{stderr}\n```"
+                running_log = self._read_running_log(output_dir)
+                diagnostics = "\n".join(part for part in (running_log, stderr) if part)
+                return f"EcoTrain Plugin failed to start. Exit code: {return_code}\n\n```\n{diagnostics}\n```"
 
             if self.aborted:
                 return "EcoTrain Plugin startup was aborted."
@@ -277,10 +279,12 @@ class Runner:
         abort_process(trainer.pid)
         _, stderr = trainer.communicate()
         stderr = stderr or ""
+        running_log = self._read_running_log(output_dir)
+        diagnostics = "\n".join(part for part in (running_log, stderr) if part)
         return (
             "EcoTrain Plugin startup timed out before API enabled status was confirmed. "
             "Baseline was not started.\n\n"
-            f"```\n{stderr}\n```"
+            f"```\n{diagnostics}\n```"
         )
 
     def _apply_user_output_root(self, args: dict[str, Any], plugin_username: str | None) -> None:
@@ -855,11 +859,14 @@ class Runner:
         else:
             failed_label = next((label for label, return_code in return_codes.items() if return_code != 0), "unknown")
             failed_stderr = stderrs.get(failed_label, "")
-            print(failed_stderr)
+            failed_output_path = self.run_output_paths.get(failed_label, output_path)
+            failed_running_log = self._read_running_log(failed_output_path)
+            failed_diagnostics = "\n".join(part for part in (failed_running_log, failed_stderr) if part)
+            print(failed_diagnostics)
             finish_info = ALERTS["err_failed"][lang]
             finish_log = (
                 ALERTS["err_failed"][lang]
-                + f" [{failed_label}] Exit code: {return_codes.get(failed_label, -1)}\n\n```\n{failed_stderr}\n```"
+                + f" [{failed_label}] Exit code: {return_codes.get(failed_label, -1)}\n\n```\n{failed_diagnostics}\n```"
             )
 
         self._finalize(lang, finish_info)
