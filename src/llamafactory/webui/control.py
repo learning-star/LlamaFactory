@@ -116,6 +116,8 @@ def apply_training_preset(preset_name: str) -> tuple[Any, ...]:
         preset["lr_scheduler_type"],
         preset["compute_type"],
         preset["packing"],
+        preset["logging_steps"],
+        preset["enable_thinking"],
     )
 
 

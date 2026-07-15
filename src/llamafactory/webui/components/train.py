@@ -554,6 +554,8 @@ def create_train_tab(engine: "Engine") -> dict[str, "Component"]:
             lr_scheduler_type,
             compute_type,
             packing,
+            logging_steps,
+            enable_thinking,
         ],
         queue=False,
     )

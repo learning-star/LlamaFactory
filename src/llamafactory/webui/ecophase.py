@@ -41,7 +41,7 @@ ECOPHASE_TRAINING_PRESETS: "OrderedDict[str, dict[str, Any]]" = OrderedDict(
             "dataset": ["scienceqa_train"],
             "cutoff_len": 512,
             "learning_rate": "5e-5",
-            "num_train_epochs": "5",
+            "num_train_epochs": "8",
             "batch_size": 16,
             "gradient_accumulation_steps": 1,
             "compute_type": "bf16",
@@ -49,6 +49,8 @@ ECOPHASE_TRAINING_PRESETS: "OrderedDict[str, dict[str, Any]]" = OrderedDict(
             "lr_scheduler_type": "cosine",
             "max_grad_norm": "1.0",
             "packing": True,
+            "logging_steps": 10,
+            "enable_thinking": False,
         },
     }
 )
